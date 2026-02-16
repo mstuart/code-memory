@@ -1,0 +1,45 @@
+{
+  "name": "code-memory",
+  "version": "0.1.0",
+  "description": "Persistent memory for AI coding — semantic search, git history analysis, and intelligent context preservation",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mstuart/code-memory"
+  },
+  "homepage": "https://github.com/mstuart/code-memory#readme",
+  "keywords": [
+    "ai-memory",
+    "code-memory",
+    "mcp",
+    "model-context-protocol",
+    "semantic-search",
+    "git-history",
+    "ai-coding",
+    "developer-tools"
+  ],
+  "bin": {
+    "code-memory": "bin/code-memory"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js"
+  },
+  "files": [
+    "bin/",
+    "scripts/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}

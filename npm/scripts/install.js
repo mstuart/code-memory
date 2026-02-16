@@ -1,0 +1,150 @@
+#!/usr/bin/env node
+"use strict";
+
+const https = require("https");
+const http = require("http");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const { execSync } = require("child_process");
+
+const PACKAGE = require("../package.json");
+const VERSION = PACKAGE.version;
+const REPO = "mstuart/code-memory";
+const BINARY_NAME = "code-memory";
+
+function getPlatformTarget() {
+  const platform = os.platform();
+  const arch = os.arch();
+
+  const targets = {
+    "darwin-x64": "x86_64-apple-darwin",
+    "darwin-arm64": "aarch64-apple-darwin",
+    "linux-x64": "x86_64-unknown-linux-gnu",
+    "linux-arm64": "aarch64-unknown-linux-gnu",
+    "win32-x64": "x86_64-pc-windows-msvc",
+  };
+
+  const key = `${platform}-${arch}`;
+  const target = targets[key];
+
+  if (!target) {
+    console.error(`Unsupported platform: ${key}`);
+    console.error(`Supported platforms: ${Object.keys(targets).join(", ")}`);
+    process.exit(1);
+  }
+
+  return { target, platform, arch };
+}
+
+function getDownloadUrl(target) {
+  const ext = target.includes("windows") ? ".exe" : "";
+  const archive = target.includes("windows") ? "zip" : "tar.gz";
+  return `https://github.com/${REPO}/releases/download/v${VERSION}/${BINARY_NAME}-v${VERSION}-${target}.${archive}`;
+}
+
+function download(url) {
+  return new Promise((resolve, reject) => {
+    const handler = (response) => {
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        const redirectUrl = response.headers.location;
+        const client = redirectUrl.startsWith("https") ? https : http;
+        client.get(redirectUrl, handler).on("error", reject);
+        return;
+      }
+
+      if (response.statusCode !== 200) {
+        reject(new Error(`Download failed with status ${response.statusCode}: ${url}`));
+        return;
+      }
+
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => resolve(Buffer.concat(chunks)));
+      response.on("error", reject);
+    };
+
+    https.get(url, handler).on("error", reject);
+  });
+}
+
+async function extractTarGz(buffer, destDir) {
+  const tmpFile = path.join(os.tmpdir(), `code-memory-${Date.now()}.tar.gz`);
+  fs.writeFileSync(tmpFile, buffer);
+
+  try {
+    execSync(`tar xzf "${tmpFile}" -C "${destDir}"`, { stdio: "pipe" });
+  } finally {
+    try { fs.unlinkSync(tmpFile); } catch (_) {}
+  }
+}
+
+async function extractZip(buffer, destDir) {
+  const tmpFile = path.join(os.tmpdir(), `code-memory-${Date.now()}.zip`);
+  fs.writeFileSync(tmpFile, buffer);
+
+  try {
+    execSync(`unzip -o "${tmpFile}" -d "${destDir}"`, { stdio: "pipe" });
+  } finally {
+    try { fs.unlinkSync(tmpFile); } catch (_) {}
+  }
+}
+
+async function install() {
+  const { target, platform } = getPlatformTarget();
+  const binDir = path.join(__dirname, "..", "bin");
+  const binPath = path.join(binDir, platform === "win32" ? `${BINARY_NAME}.exe` : BINARY_NAME);
+
+  // Check if binary already exists
+  if (fs.existsSync(binPath)) {
+    console.log(`code-memory binary already installed at ${binPath}`);
+    return;
+  }
+
+  const url = getDownloadUrl(target);
+  console.log(`Downloading code-memory v${VERSION} for ${target}...`);
+  console.log(`  URL: ${url}`);
+
+  try {
+    const data = await download(url);
+    console.log(`  Downloaded ${(data.length / 1024 / 1024).toFixed(1)} MB`);
+
+    // Extract
+    fs.mkdirSync(binDir, { recursive: true });
+
+    if (target.includes("windows")) {
+      await extractZip(data, binDir);
+    } else {
+      await extractTarGz(data, binDir);
+    }
+
+    // Make executable
+    if (platform !== "win32") {
+      fs.chmodSync(binPath, 0o755);
+    }
+
+    console.log(`  Installed to ${binPath}`);
+  } catch (error) {
+    console.warn(`\nFailed to download pre-built binary: ${error.message}`);
+    console.warn("\nYou can build from source instead:");
+    console.warn("  cargo install --path .");
+    console.warn("\nOr download manually from:");
+    console.warn(`  https://github.com/${REPO}/releases`);
+
+    // Create a stub script that tells the user to install manually
+    const stub = platform === "win32"
+      ? `@echo off\necho code-memory binary not installed. Run: cargo install --path . in the code-memory repo\nexit /b 1\n`
+      : `#!/bin/sh\necho "code-memory binary not installed. Run: cargo install --path . in the code-memory repo"\nexit 1\n`;
+
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.writeFileSync(binPath, stub);
+    if (platform !== "win32") {
+      fs.chmodSync(binPath, 0o755);
+    }
+  }
+}
+
+install().catch((error) => {
+  console.error("Installation failed:", error.message);
+  process.exit(1);
+});

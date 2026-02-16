@@ -1,0 +1,78 @@
+[package]
+name = "code-memory"
+version = "0.1.0"
+edition = "2021"
+description = "Persistent memory for AI coding - semantic search, git history, and intelligent context preservation"
+license = "MIT"
+repository = "https://github.com/mstuart/code-memory"
+keywords = ["ai-memory", "code-context", "mcp-server", "semantic-search", "git-history"]
+categories = ["development-tools", "command-line-utilities"]
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Serialization / MCP protocol
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Full-text search
+tantivy = "0.22"
+
+# Embeddings (local, no API)
+fastembed = "4"
+
+# Git integration
+git2 = "0.19"
+
+# Dependency graphs
+petgraph = "0.6"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# File watching
+notify = "7"
+
+# Glob / gitignore matching
+ignore = "0.4"
+
+# Tree-sitter for code parsing
+tree-sitter = "0.24"
+tree-sitter-rust = "0.23"
+tree-sitter-javascript = "0.23"
+tree-sitter-typescript = "0.23"
+tree-sitter-python = "0.23"
+
+# UUID for request IDs
+uuid = { version = "1", features = ["v4"] }
+
+# Async channel for MCP communication
+tokio-stream = "0.1"
+
+# Directories
+dirs = "6"
+
+# CLI argument parsing
+clap = { version = "4", features = ["derive"] }
+
+# TOML config
+toml = "0.8"
+
+# Chrono for timestamps
+chrono = { version = "0.4", features = ["serde"] }
+
+# Regex for pattern matching
+regex = "1"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = 3
+lto = true
