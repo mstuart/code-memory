@@ -44,6 +44,7 @@ async fn main() -> Result<()> {
         Some(Command::Sessions { top, min_confidence, format }) => {
             cmd_sessions(top, min_confidence, &format).await
         }
+        Some(Command::Web { port }) => cmd_web(port).await,
     }
 }
 
@@ -362,5 +363,14 @@ async fn cmd_sessions(top: usize, min_confidence: f32, format: &str) -> Result<(
         println!("No patterns learned yet. More session data needed.");
     }
 
+    Ok(())
+}
+
+async fn cmd_web(port: u16) -> Result<()> {
+    let addr = format!("127.0.0.1:{}", port);
+    eprintln!("Starting web UI on http://{}", addr);
+    eprintln!("Note: This is a Pro-only feature");
+
+    code_memory::web::server::start_server(&addr)?;
     Ok(())
 }

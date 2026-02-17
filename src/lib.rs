@@ -7,3 +7,4 @@ pub mod git;
 pub mod graph;
 pub mod query;
 pub mod sessions;
+pub mod web;
