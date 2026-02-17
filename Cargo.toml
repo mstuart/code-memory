@@ -70,8 +70,17 @@ chrono = { version = "0.4", features = ["serde"] }
 # Regex for pattern matching
 regex = "1"
 
+# License verification
+sha2 = "0.10"
+hex = "0.4"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false, optional = true }
+
 [dev-dependencies]
 tempfile = "3"
+
+[features]
+default = []
+online-license = ["reqwest"]
 
 [profile.release]
 opt-level = 3

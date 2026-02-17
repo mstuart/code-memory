@@ -4,9 +4,9 @@ use anyhow::Result;
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
-use claude_context::cli::{Cli, Command};
-use claude_context::mcp::server::McpServer;
-use claude_context::sessions::{SessionTracker, SessionEvent, SessionEventType};
+use code_memory::cli::{Cli, Command};
+use code_memory::mcp::server::McpServer;
+use code_memory::sessions::{SessionTracker, SessionEvent, SessionEventType};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -109,13 +109,13 @@ async fn cmd_reindex(root: PathBuf, force: bool) -> Result<()> {
     let root = canonicalize_root(root)?;
     eprintln!("Reindexing {} (force={})", root.display(), force);
 
-    let index_path = claude_context::indexer::walker::index_storage_path(&root);
+    let index_path = code_memory::indexer::walker::index_storage_path(&root);
     if force && index_path.exists() {
         std::fs::remove_dir_all(&index_path)?;
     }
 
-    let code_index = claude_context::indexer::code_index::CodeIndex::open_or_create(&index_path)?;
-    let stats = claude_context::indexer::walker::index_project(&root, &code_index)?;
+    let code_index = code_memory::indexer::code_index::CodeIndex::open_or_create(&index_path)?;
+    let stats = code_memory::indexer::walker::index_project(&root, &code_index)?;
 
     eprintln!(
         "Indexed {} files ({} skipped) with {} symbols in {}ms",
@@ -133,14 +133,14 @@ async fn cmd_search(
 ) -> Result<()> {
     let root = canonicalize_root(root)?;
 
-    let index_path = claude_context::indexer::walker::index_storage_path(&root);
+    let index_path = code_memory::indexer::walker::index_storage_path(&root);
     if !index_path.exists() {
         eprintln!("No index found. Run `code-memory reindex` first.");
         return Ok(());
     }
 
-    let code_index = claude_context::indexer::code_index::CodeIndex::open_or_create(&index_path)?;
-    let search = claude_context::search::fulltext::FullTextSearch::new(
+    let code_index = code_memory::indexer::code_index::CodeIndex::open_or_create(&index_path)?;
+    let search = code_memory::search::fulltext::FullTextSearch::new(
         code_index.index(),
         code_index.schema(),
     )?;
@@ -168,7 +168,7 @@ async fn cmd_search(
 async fn cmd_stats(root: PathBuf) -> Result<()> {
     let root = canonicalize_root(root)?;
     let config_dir = root.join(".code-memory");
-    let index_path = claude_context::indexer::walker::index_storage_path(&root);
+    let index_path = code_memory::indexer::walker::index_storage_path(&root);
 
     println!("code-memory v{}", env!("CARGO_PKG_VERSION"));
     println!("Project root: {}", root.display());
@@ -194,7 +194,7 @@ async fn cmd_stats(root: PathBuf) -> Result<()> {
     }
 
     // Git info
-    match claude_context::git::history::GitHistory::discover(&root) {
+    match code_memory::git::history::GitHistory::discover(&root) {
         Ok(git) => {
             let commits = git.walk_commits(1).unwrap_or_default();
             if !commits.is_empty() {

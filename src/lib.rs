@@ -1,5 +1,6 @@
 pub mod cli;
 pub mod indexer;
+pub mod license;
 pub mod mcp;
 pub mod search;
 pub mod git;
