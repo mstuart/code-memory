@@ -9,3 +9,5 @@ pub mod query;
 pub mod sessions;
 pub mod web;
 pub mod drift;
+pub mod approval;
+pub mod workspace;
