@@ -78,6 +78,9 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-feature
 # Web UI
 tiny_http = "0.12"
 
+# Audit logging
+audit = { path = "../shared/audit" }
+
 [dev-dependencies]
 tempfile = "3"
 reqwest = { version = "0.12", features = ["blocking", "rustls-tls"], default-features = false }
