@@ -1,7 +1,10 @@
-# Code Memory
+<div align="center">
+  <img src="docs/assets/logo.svg" alt="code-memory — Persistent memory for AI coding - semantic search, git history, and intelligent context preservation" width="720">
+</div>
 
-> Persistent memory for AI coding - Never lose context again
+<p align="center"><strong>Persistent memory for AI coding - semantic search, git history, and intelligent context preservation</strong></p>
 
+---
 [![npm version](https://badge.fury.io/js/code-memory.svg)](https://www.npmjs.com/package/code-memory)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
