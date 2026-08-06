@@ -4,6 +4,11 @@
 
 <p align="center"><strong>Persistent memory for AI coding - semantic search, git history, and intelligent context preservation</strong></p>
 
+<p align="center">
+  <a href="https://github.com/mstuart/code-memory/actions/workflows/ci.yml"><img src="https://github.com/mstuart/code-memory/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/rust-stable-orange.svg" alt="Rust">
+</p>
+
 ---
 [![npm version](https://badge.fury.io/js/code-memory.svg)](https://www.npmjs.com/package/code-memory)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
