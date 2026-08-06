@@ -603,7 +603,7 @@ async fn handle_find_related(args: &Value, project_root: &Path) -> CallToolResul
         }
 
         let mut related: Vec<(String, usize)> = cochange_freq.into_iter().collect();
-        related.sort_by(|a, b| b.1.cmp(&a.1));
+        related.sort_by_key(|b| std::cmp::Reverse(b.1));
         related.truncate(15);
 
         if !related.is_empty() {
