@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -87,12 +86,11 @@ impl SessionTracker {
         if let Ok(entries) = fs::read_dir(&self.history_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.extension().and_then(|e| e.to_str()) == Some("json")
-                    || path.extension().and_then(|e| e.to_str()) == Some("jsonl")
+                if (path.extension().and_then(|e| e.to_str()) == Some("json")
+                    || path.extension().and_then(|e| e.to_str()) == Some("jsonl"))
+                    && !sessions.contains(&path)
                 {
-                    if !sessions.contains(&path) {
-                        sessions.push(path);
-                    }
+                    sessions.push(path);
                 }
             }
         }
@@ -176,14 +174,12 @@ impl SessionTracker {
             .map(|s| s.to_string());
 
         let entry_type = match entry_type_str {
-            "tool_use" | "tool_call" => {
-                match tool_name.as_deref() {
-                    Some("Edit") | Some("Write") => EntryType::FileEdit,
-                    Some("Read") => EntryType::FileRead,
-                    Some("Bash") => EntryType::BashCommand,
-                    _ => EntryType::ToolUse,
-                }
-            }
+            "tool_use" | "tool_call" => match tool_name.as_deref() {
+                Some("Edit") | Some("Write") => EntryType::FileEdit,
+                Some("Read") => EntryType::FileRead,
+                Some("Bash") => EntryType::BashCommand,
+                _ => EntryType::ToolUse,
+            },
             "user" | "human" => EntryType::UserMessage,
             "assistant" => EntryType::AssistantMessage,
             _ => EntryType::ToolUse,
@@ -211,9 +207,10 @@ impl SessionTracker {
 
             if entry.entry_type == EntryType::BashCommand && self.looks_like_error(&entry.content) {
                 let end = (i + 5).min(entries.len());
-                if let Some(fix_entry) = entries.get(i + 1..end).and_then(|slice| {
-                    slice.iter().find(|e| e.entry_type == EntryType::FileEdit)
-                }) {
+                if let Some(fix_entry) = entries
+                    .get(i + 1..end)
+                    .and_then(|slice| slice.iter().find(|e| e.entry_type == EntryType::FileEdit))
+                {
                     events.push(SessionEvent {
                         event_type: SessionEventType::ErrorAndFix,
                         description: format!(
@@ -226,7 +223,8 @@ impl SessionTracker {
                 }
             }
 
-            if entry.entry_type == EntryType::FileEdit || entry.entry_type == EntryType::FileCreate {
+            if entry.entry_type == EntryType::FileEdit || entry.entry_type == EntryType::FileCreate
+            {
                 if let Some(path) = &entry.file_path {
                     if path.contains("test") || path.contains("spec") {
                         events.push(SessionEvent {
@@ -262,9 +260,16 @@ impl SessionTracker {
 
     fn detect_decision(&self, text: &str, timestamp: &str) -> Option<SessionEvent> {
         let decision_indicators = [
-            "I'll use", "let's use", "we should", "I recommend",
-            "the best approach", "decided to", "choosing",
-            "instead of", "rather than", "better to",
+            "I'll use",
+            "let's use",
+            "we should",
+            "I recommend",
+            "the best approach",
+            "decided to",
+            "choosing",
+            "instead of",
+            "rather than",
+            "better to",
         ];
 
         let lower = text.to_lowercase();
@@ -296,14 +301,20 @@ impl SessionTracker {
 
     fn looks_like_error(&self, content: &str) -> bool {
         let lower = content.to_lowercase();
-        lower.contains("error") || lower.contains("failed") || lower.contains("panic")
-            || lower.contains("exception") || lower.contains("not found")
+        lower.contains("error")
+            || lower.contains("failed")
+            || lower.contains("panic")
+            || lower.contains("exception")
+            || lower.contains("not found")
     }
 
     fn looks_like_refactoring(&self, content: &str) -> bool {
         let lower = content.to_lowercase();
-        lower.contains("refactor") || lower.contains("restructure") || lower.contains("reorganize")
-            || lower.contains("extract") || lower.contains("move to")
+        lower.contains("refactor")
+            || lower.contains("restructure")
+            || lower.contains("reorganize")
+            || lower.contains("extract")
+            || lower.contains("move to")
     }
 
     fn summarize_refactoring(&self, content: &str) -> String {
@@ -403,7 +414,9 @@ mod tests {
             },
         ];
         let events = tracker.extract_events(&entries);
-        let error_fix = events.iter().find(|e| e.event_type == SessionEventType::ErrorAndFix);
+        let error_fix = events
+            .iter()
+            .find(|e| e.event_type == SessionEventType::ErrorAndFix);
         assert!(error_fix.is_some());
     }
 

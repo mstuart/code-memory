@@ -58,17 +58,20 @@ impl FullTextSearch {
         for (score, doc_address) in top_docs {
             let doc: TantivyDocument = searcher.doc(doc_address)?;
 
-            let path = doc.get_first(self.schema.path)
+            let path = doc
+                .get_first(self.schema.path)
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
 
-            let symbols = doc.get_first(self.schema.symbols)
+            let symbols = doc
+                .get_first(self.schema.symbols)
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
 
-            let language = doc.get_first(self.schema.language)
+            let language = doc
+                .get_first(self.schema.language)
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
@@ -103,16 +106,19 @@ mod tests {
             src_dir.join("auth.rs"),
             "pub fn authenticate_user(username: &str, password: &str) -> bool {\n    true\n}\n\
              pub struct AuthToken {\n    pub token: String,\n}\n",
-        ).unwrap();
+        )
+        .unwrap();
         fs::write(
             src_dir.join("database.rs"),
             "pub fn connect_database(url: &str) -> Result<(), String> {\n    Ok(())\n}\n\
              pub struct DatabasePool {\n    pub connections: Vec<String>,\n}\n",
-        ).unwrap();
+        )
+        .unwrap();
         fs::write(
             src_dir.join("api.rs"),
             "pub fn handle_request() {}\npub fn parse_json() {}\n",
-        ).unwrap();
+        )
+        .unwrap();
 
         // Index the project
         let index_dir = dir.path().join("index");
@@ -125,13 +131,22 @@ mod tests {
 
         // Search for "authenticate"
         let results = search.search("authenticate", 10).unwrap();
-        assert!(!results.is_empty(), "Should find results for 'authenticate'");
-        assert!(results[0].path.contains("auth"), "Top result should be auth.rs");
+        assert!(
+            !results.is_empty(),
+            "Should find results for 'authenticate'"
+        );
+        assert!(
+            results[0].path.contains("auth"),
+            "Top result should be auth.rs"
+        );
 
         // Search for "database"
         let results = search.search("database", 10).unwrap();
         assert!(!results.is_empty(), "Should find results for 'database'");
-        assert!(results[0].path.contains("database"), "Top result should be database.rs");
+        assert!(
+            results[0].path.contains("database"),
+            "Top result should be database.rs"
+        );
 
         // Search for symbol
         let results = search.search("symbols:AuthToken", 10).unwrap();

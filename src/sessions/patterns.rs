@@ -29,6 +29,12 @@ pub struct PatternLibrary {
     patterns: Vec<Pattern>,
 }
 
+impl Default for PatternLibrary {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PatternLibrary {
     pub fn new() -> Self {
         Self {
@@ -70,17 +76,29 @@ impl PatternLibrary {
 
     fn classify_pattern(&self, key: &str) -> (PatternType, String) {
         if key.starts_with("naming:") {
-            (PatternType::NamingConvention, format!("Naming convention: {}", key))
+            (
+                PatternType::NamingConvention,
+                format!("Naming convention: {}", key),
+            )
         } else if key.starts_with("error:") {
-            (PatternType::ErrorHandling, format!("Error handling: {}", key))
+            (
+                PatternType::ErrorHandling,
+                format!("Error handling: {}", key),
+            )
         } else if key.starts_with("test:") {
             (PatternType::TestingStyle, format!("Testing style: {}", key))
         } else if key.starts_with("import:") {
             (PatternType::ImportStyle, format!("Import style: {}", key))
         } else if key.starts_with("config:") {
-            (PatternType::ConfigPreference, format!("Config preference: {}", key))
+            (
+                PatternType::ConfigPreference,
+                format!("Config preference: {}", key),
+            )
         } else {
-            (PatternType::CodeOrganization, format!("Code pattern: {}", key))
+            (
+                PatternType::CodeOrganization,
+                format!("Code pattern: {}", key),
+            )
         }
     }
 
@@ -90,12 +108,18 @@ impl PatternLibrary {
 
     /// Get all patterns above a confidence threshold.
     pub fn confident_patterns(&self, min_confidence: f32) -> Vec<&Pattern> {
-        self.patterns.iter().filter(|p| p.confidence >= min_confidence).collect()
+        self.patterns
+            .iter()
+            .filter(|p| p.confidence >= min_confidence)
+            .collect()
     }
 
     /// Get all patterns of a specific type.
     pub fn patterns_of_type(&self, pattern_type: &PatternType) -> Vec<&Pattern> {
-        self.patterns.iter().filter(|p| &p.pattern_type == pattern_type).collect()
+        self.patterns
+            .iter()
+            .filter(|p| &p.pattern_type == pattern_type)
+            .collect()
     }
 
     /// Get the top N most observed patterns.

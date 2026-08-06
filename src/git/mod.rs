@@ -1,5 +1,5 @@
-pub mod history;
 pub mod decisions;
+pub mod history;
 
-pub use history::{GitHistory, CommitInfo, FileHistory};
-pub use decisions::{DecisionExtractor, Decision, DecisionType};
+pub use decisions::{Decision, DecisionExtractor, DecisionType};
+pub use history::{CommitInfo, FileHistory, GitHistory};

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use tracing::{debug, warn};
 
-use super::code_index::{CodeIndex, CodeSchema};
+use super::code_index::CodeIndex;
 use super::parser;
 
 /// Stats from an indexing operation
@@ -28,10 +28,10 @@ pub fn index_project(project_path: &Path, code_index: &CodeIndex) -> Result<Inde
     let mut symbols_found = 0usize;
 
     let walker = WalkBuilder::new(project_path)
-        .hidden(true)        // skip hidden files
-        .git_ignore(true)    // respect .gitignore
-        .git_global(true)    // respect global gitignore
-        .git_exclude(true)   // respect .git/info/exclude
+        .hidden(true) // skip hidden files
+        .git_ignore(true) // respect .gitignore
+        .git_global(true) // respect global gitignore
+        .git_exclude(true) // respect .git/info/exclude
         .build();
 
     for entry in walker {
@@ -45,7 +45,7 @@ pub fn index_project(project_path: &Path, code_index: &CodeIndex) -> Result<Inde
         };
 
         // Only process files
-        if !entry.file_type().map_or(false, |ft| ft.is_file()) {
+        if !entry.file_type().is_some_and(|ft| ft.is_file()) {
             continue;
         }
 
@@ -109,7 +109,12 @@ pub fn index_project(project_path: &Path, code_index: &CodeIndex) -> Result<Inde
             .unwrap_or(path)
             .to_string_lossy();
 
-        debug!("Indexing: {} ({}, {} symbols)", rel_path, language, symbols.len());
+        debug!(
+            "Indexing: {} ({}, {} symbols)",
+            rel_path,
+            language,
+            symbols.len()
+        );
 
         CodeIndex::index_file(
             &writer,
@@ -167,18 +172,17 @@ mod tests {
         fs::create_dir_all(&src_dir).unwrap();
 
         // Create some test files
-        fs::write(
-            src_dir.join("main.rs"),
-            "pub fn main() {}\nstruct App {}\n",
-        ).unwrap();
+        fs::write(src_dir.join("main.rs"), "pub fn main() {}\nstruct App {}\n").unwrap();
         fs::write(
             src_dir.join("lib.rs"),
             "pub fn helper() {}\npub enum Color { Red }\n",
-        ).unwrap();
+        )
+        .unwrap();
         fs::write(
             dir.path().join("script.py"),
             "def hello():\n    pass\nclass World:\n    pass\n",
-        ).unwrap();
+        )
+        .unwrap();
 
         // Create index in temp dir
         let index_dir = dir.path().join("index");

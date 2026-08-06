@@ -31,7 +31,9 @@ fn normalize_path(path: &str) -> String {
     for component in path.split('/') {
         match component {
             "." | "" => {}
-            ".." => { parts.pop(); }
+            ".." => {
+                parts.pop();
+            }
             other => parts.push(other),
         }
     }
@@ -43,6 +45,12 @@ pub struct DependencyGraph {
     graph: DiGraph<String, ()>,
     node_map: HashMap<String, NodeIndex>,
     parser: ImportParser,
+}
+
+impl Default for DependencyGraph {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl DependencyGraph {
@@ -60,7 +68,8 @@ impl DependencyGraph {
         let imports = self.parser.parse(file_path, content);
 
         for import in &imports {
-            let resolved = self.resolve_import(file_path, &import.imported_path, import.is_relative);
+            let resolved =
+                self.resolve_import(file_path, &import.imported_path, import.is_relative);
             // Try to match against a known node (with common extensions)
             let target_key = self.find_matching_node(&resolved).unwrap_or(resolved);
             let target_idx = self.get_or_create_node(&target_key);
@@ -198,7 +207,10 @@ impl DependencyGraph {
         self.node_map
             .iter()
             .map(|(path, &idx)| {
-                let ext = Path::new(path).extension().and_then(|e| e.to_str()).unwrap_or("");
+                let ext = Path::new(path)
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("");
                 let language = match ext {
                     "rs" => "rust",
                     "ts" | "tsx" => "typescript",
@@ -206,13 +218,20 @@ impl DependencyGraph {
                     "py" => "python",
                     "go" => "go",
                     other => other,
-                }.to_string();
+                }
+                .to_string();
 
                 NodeInfo {
                     path: path.clone(),
                     language,
-                    import_count: self.graph.neighbors_directed(idx, Direction::Outgoing).count(),
-                    imported_by_count: self.graph.neighbors_directed(idx, Direction::Incoming).count(),
+                    import_count: self
+                        .graph
+                        .neighbors_directed(idx, Direction::Outgoing)
+                        .count(),
+                    imported_by_count: self
+                        .graph
+                        .neighbors_directed(idx, Direction::Incoming)
+                        .count(),
                 }
             })
             .collect()
@@ -225,10 +244,16 @@ impl DependencyGraph {
 
     /// Files with most incoming dependencies.
     pub fn most_depended_on(&self, limit: usize) -> Vec<(String, usize)> {
-        let mut counts: Vec<(String, usize)> = self.node_map
+        let mut counts: Vec<(String, usize)> = self
+            .node_map
             .iter()
             .map(|(path, &idx)| {
-                (path.clone(), self.graph.neighbors_directed(idx, Direction::Incoming).count())
+                (
+                    path.clone(),
+                    self.graph
+                        .neighbors_directed(idx, Direction::Incoming)
+                        .count(),
+                )
             })
             .collect();
         counts.sort_by(|a, b| b.1.cmp(&a.1));
@@ -238,10 +263,16 @@ impl DependencyGraph {
 
     /// Files with most outgoing dependencies (most coupled).
     pub fn most_coupled(&self, limit: usize) -> Vec<(String, usize)> {
-        let mut counts: Vec<(String, usize)> = self.node_map
+        let mut counts: Vec<(String, usize)> = self
+            .node_map
             .iter()
             .map(|(path, &idx)| {
-                (path.clone(), self.graph.neighbors_directed(idx, Direction::Outgoing).count())
+                (
+                    path.clone(),
+                    self.graph
+                        .neighbors_directed(idx, Direction::Outgoing)
+                        .count(),
+                )
             })
             .collect();
         counts.sort_by(|a, b| b.1.cmp(&a.1));
@@ -258,7 +289,10 @@ mod tests {
     fn test_add_files_and_query() {
         let mut graph = DependencyGraph::new();
 
-        graph.add_file("src/main.ts", "import { Router } from './router';\nimport { Database } from './db';\n");
+        graph.add_file(
+            "src/main.ts",
+            "import { Router } from './router';\nimport { Database } from './db';\n",
+        );
         graph.add_file("src/router.ts", "import { handler } from './handler';\n");
         graph.add_file("src/handler.ts", "import { Database } from './db';\n");
 
@@ -286,7 +320,10 @@ mod tests {
     #[test]
     fn test_rust_imports() {
         let mut graph = DependencyGraph::new();
-        graph.add_file("src/main.rs", "use crate::git::history;\nuse crate::graph::analyzer;\n");
+        graph.add_file(
+            "src/main.rs",
+            "use crate::git::history;\nuse crate::graph::analyzer;\n",
+        );
         let deps = graph.depends_on("src/main.rs");
         assert_eq!(deps.len(), 2);
     }

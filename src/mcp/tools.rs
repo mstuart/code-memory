@@ -1,7 +1,7 @@
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::git::history::GitHistory;
 use crate::indexer::code_index::CodeIndex;
@@ -43,7 +43,8 @@ pub(crate) fn force_reindex(project_root: &Path) -> Result<(usize, usize, u128),
     // Remove the index directory and rebuild
     let index_path = walker::index_storage_path(project_root);
     if index_path.exists() {
-        std::fs::remove_dir_all(&index_path).map_err(|e| format!("Failed to remove old index: {}", e))?;
+        std::fs::remove_dir_all(&index_path)
+            .map_err(|e| format!("Failed to remove old index: {}", e))?;
     }
 
     let (files, symbols, elapsed) = do_index(project_root)?;
@@ -263,11 +264,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
 }
 
 /// Dispatch a tool call to the appropriate handler.
-pub async fn dispatch(
-    name: &str,
-    args: Option<Value>,
-    project_root: &Path,
-) -> CallToolResult {
+pub async fn dispatch(name: &str, args: Option<Value>, project_root: &Path) -> CallToolResult {
     let args = args.unwrap_or(json!({}));
 
     match name {
@@ -349,9 +346,7 @@ async fn handle_explain_code(args: &Value, project_root: &Path) -> CallToolResul
 
     // Auto-index if needed
     if !ensure_indexed(project_root) {
-        return CallToolResult::error(
-            "Failed to auto-index project.".to_string(),
-        );
+        return CallToolResult::error("Failed to auto-index project.".to_string());
     }
 
     let guard = get_state_lock().lock().unwrap();
@@ -374,12 +369,14 @@ async fn handle_explain_code(args: &Value, project_root: &Path) -> CallToolResul
                         let lang = crate::indexer::parser::detect_language(&file_path)
                             .unwrap_or("unknown");
                         let syms = crate::indexer::parser::extract_symbols(&content, lang);
-                        let matching: Vec<_> = syms.iter()
-                            .filter(|s| s.name.contains(symbol))
-                            .collect();
+                        let matching: Vec<_> =
+                            syms.iter().filter(|s| s.name.contains(symbol)).collect();
                         if !matching.is_empty() {
-                            let details: Vec<String> = matching.iter()
-                                .map(|s| format!("  {:?} '{}' at line {}", s.kind, s.name, s.line + 1))
+                            let details: Vec<String> = matching
+                                .iter()
+                                .map(|s| {
+                                    format!("  {:?} '{}' at line {}", s.kind, s.name, s.line + 1)
+                                })
                                 .collect();
                             details.join("\n")
                         } else {
@@ -456,7 +453,9 @@ async fn handle_trace_decision(args: &Value, project_root: &Path) -> CallToolRes
         .filter(|d| {
             d.summary.to_lowercase().contains(&topic_lower)
                 || d.details.to_lowercase().contains(&topic_lower)
-                || d.files_affected.iter().any(|f| f.to_lowercase().contains(&topic_lower))
+                || d.files_affected
+                    .iter()
+                    .any(|f| f.to_lowercase().contains(&topic_lower))
         })
         .collect();
 
@@ -505,10 +504,7 @@ async fn handle_find_related(args: &Value, project_root: &Path) -> CallToolResul
         Some(f) => f,
         None => return CallToolResult::error("Missing required parameter: file".to_string()),
     };
-    let depth = args
-        .get("depth")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(2) as usize;
+    let depth = args.get("depth").and_then(|v| v.as_u64()).unwrap_or(2) as usize;
     let direction = args
         .get("direction")
         .and_then(|v| v.as_str())
@@ -536,7 +532,7 @@ async fn handle_find_related(args: &Value, project_root: &Path) -> CallToolResul
             .build();
 
         for entry in walker.flatten() {
-            if !entry.file_type().map_or(false, |ft| ft.is_file()) {
+            if !entry.file_type().is_some_and(|ft| ft.is_file()) {
                 continue;
             }
             let path = entry.path();
@@ -562,7 +558,10 @@ async fn handle_find_related(args: &Value, project_root: &Path) -> CallToolResul
         }
 
         if !dependents.is_empty() && (direction == "dependents" || direction == "both") {
-            output.push_str(&format!("Dependents ({} files import this):\n", dependents.len()));
+            output.push_str(&format!(
+                "Dependents ({} files import this):\n",
+                dependents.len()
+            ));
             for dep in &dependents {
                 output.push_str(&format!("  <- {}\n", dep));
             }
@@ -672,10 +671,7 @@ async fn handle_remember(args: &Value, project_root: &Path) -> CallToolResult {
         }
     } else {
         if let Err(e) = std::fs::create_dir_all(&knowledge_dir) {
-            return CallToolResult::error(format!(
-                "Failed to create knowledge directory: {}",
-                e
-            ));
+            return CallToolResult::error(format!("Failed to create knowledge directory: {}", e));
         }
         Vec::new()
     };
@@ -727,10 +723,7 @@ async fn handle_remember(args: &Value, project_root: &Path) -> CallToolResult {
 }
 
 async fn handle_index_project(args: &Value, project_root: &Path) -> CallToolResult {
-    let force = args
-        .get("force")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+    let force = args.get("force").and_then(|v| v.as_bool()).unwrap_or(false);
 
     info!("index_project: force={} root={:?}", force, project_root);
 
@@ -742,7 +735,10 @@ async fn handle_index_project(args: &Value, project_root: &Path) -> CallToolResu
                  Symbols found: {}\n\
                  Elapsed: {}ms\n\
                  Root: {}",
-                files, symbols, elapsed, project_root.display()
+                files,
+                symbols,
+                elapsed,
+                project_root.display()
             )),
             Err(e) => CallToolResult::error(format!("Reindex failed: {}", e)),
         }
@@ -757,7 +753,9 @@ async fn handle_index_project(args: &Value, project_root: &Path) -> CallToolResu
                  Symbols found: {}\n\
                  Root: {}\n\n\
                  Use force=true to rebuild from scratch.",
-                state.files_indexed, state.symbols_found, state.project_path.display()
+                state.files_indexed,
+                state.symbols_found,
+                state.project_path.display()
             ))
         } else {
             CallToolResult::error(
@@ -772,13 +770,8 @@ async fn handle_get_session_patterns(args: &Value, _project_root: &Path) -> Call
         .get("min_confidence")
         .and_then(|v| v.as_f64())
         .unwrap_or(0.0) as f32;
-    let top = args
-        .get("top")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(10) as usize;
-    let pattern_type_filter = args
-        .get("pattern_type")
-        .and_then(|v| v.as_str());
+    let top = args.get("top").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
+    let pattern_type_filter = args.get("pattern_type").and_then(|v| v.as_str());
 
     info!(
         "get_session_patterns: min_confidence={} top={} type={:?}",
@@ -820,7 +813,10 @@ async fn handle_get_session_patterns(args: &Value, _project_root: &Path) -> Call
             _ => None,
         };
         match target_type {
-            Some(ref t) => patterns.into_iter().filter(|p| &p.pattern_type == t).collect(),
+            Some(ref t) => patterns
+                .into_iter()
+                .filter(|p| &p.pattern_type == t)
+                .collect(),
             None => patterns,
         }
     } else {
@@ -863,7 +859,10 @@ async fn handle_get_session_patterns(args: &Value, _project_root: &Path) -> Call
     if filtered_patterns.is_empty() {
         output.push_str("No patterns learned yet. More session data needed.\n");
     } else {
-        output.push_str(&format!("Learned Patterns ({}):\n", filtered_patterns.len()));
+        output.push_str(&format!(
+            "Learned Patterns ({}):\n",
+            filtered_patterns.len()
+        ));
         for pattern in &filtered_patterns {
             output.push_str(&format!(
                 "  [{:.0}%] {} (observed {} times)\n",

@@ -22,7 +22,10 @@ impl McpServer {
 
     /// Run the MCP server reading JSON-RPC from stdin, writing to stdout.
     pub async fn run(&self) -> Result<()> {
-        info!("claude-context MCP server starting (root: {:?})", self.project_root);
+        info!(
+            "claude-context MCP server starting (root: {:?})",
+            self.project_root
+        );
 
         let stdin = io::stdin();
         let mut stdout = io::stdout();
@@ -41,11 +44,7 @@ impl McpServer {
                 Ok(req) => req,
                 Err(e) => {
                     error!("Failed to parse request: {}", e);
-                    let resp = JsonRpcResponse::error(
-                        None,
-                        -32700,
-                        format!("Parse error: {}", e),
-                    );
+                    let resp = JsonRpcResponse::error(None, -32700, format!("Parse error: {}", e));
                     Self::write_response(&mut stdout, &resp).await?;
                     continue;
                 }
@@ -60,10 +59,7 @@ impl McpServer {
         Ok(())
     }
 
-    async fn write_response(
-        stdout: &mut io::Stdout,
-        response: &JsonRpcResponse,
-    ) -> Result<()> {
+    async fn write_response(stdout: &mut io::Stdout, response: &JsonRpcResponse) -> Result<()> {
         let response_str = serde_json::to_string(response)?;
         debug!("Sending: {}", response_str);
         stdout.write_all(response_str.as_bytes()).await?;
@@ -123,20 +119,12 @@ impl McpServer {
         JsonRpcResponse::success(id, json!({ "tools": self.tool_defs }))
     }
 
-    async fn handle_tools_call(
-        &self,
-        id: Option<Value>,
-        params: Option<Value>,
-    ) -> JsonRpcResponse {
+    async fn handle_tools_call(&self, id: Option<Value>, params: Option<Value>) -> JsonRpcResponse {
         let params: CallToolParams = match params {
             Some(p) => match serde_json::from_value(p) {
                 Ok(p) => p,
                 Err(e) => {
-                    return JsonRpcResponse::error(
-                        id,
-                        -32602,
-                        format!("Invalid params: {}", e),
-                    );
+                    return JsonRpcResponse::error(id, -32602, format!("Invalid params: {}", e));
                 }
             },
             None => {
@@ -144,12 +132,7 @@ impl McpServer {
             }
         };
 
-        let result = tools::dispatch(
-            &params.name,
-            params.arguments,
-            &self.project_root,
-        )
-        .await;
+        let result = tools::dispatch(&params.name, params.arguments, &self.project_root).await;
 
         JsonRpcResponse::success(id, serde_json::to_value(result).unwrap())
     }

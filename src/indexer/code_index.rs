@@ -40,6 +40,8 @@ impl CodeSchema {
 pub struct CodeIndex {
     index: Index,
     schema: CodeSchema,
+    /// Retained for diagnostics; not read on any current code path.
+    #[allow(dead_code)]
     index_path: PathBuf,
 }
 

@@ -4,17 +4,16 @@ use anyhow::Result;
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
-use claude_context::cli::{Cli, Command};
-use claude_context::mcp::server::McpServer;
-use claude_context::sessions::{SessionTracker, SessionEvent, SessionEventType};
+use code_memory::cli::{Cli, Command};
+use code_memory::mcp::server::McpServer;
+use code_memory::sessions::{SessionEvent, SessionEventType, SessionTracker};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize logging to stderr (never stdout — that's for MCP JSON-RPC)
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info")),
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
         .with_writer(std::io::stderr)
         .init();
@@ -35,15 +34,20 @@ async fn main() -> Result<()> {
         }
         Some(Command::Init { path }) => cmd_init(path).await,
         Some(Command::Reindex { root, force }) => cmd_reindex(root, force).await,
-        Some(Command::Search { query, limit, language, root }) => {
-            cmd_search(root, &query, limit, language.as_deref()).await
-        }
+        Some(Command::Search {
+            query,
+            limit,
+            language,
+            root,
+        }) => cmd_search(root, &query, limit, language.as_deref()).await,
         Some(Command::Stats { root }) => cmd_stats(root).await,
         Some(Command::Export { output, root }) => cmd_export(root, output).await,
         Some(Command::Import { input, root }) => cmd_import(root, input).await,
-        Some(Command::Sessions { top, min_confidence, format }) => {
-            cmd_sessions(top, min_confidence, &format).await
-        }
+        Some(Command::Sessions {
+            top,
+            min_confidence,
+            format,
+        }) => cmd_sessions(top, min_confidence, &format).await,
     }
 }
 
@@ -109,13 +113,13 @@ async fn cmd_reindex(root: PathBuf, force: bool) -> Result<()> {
     let root = canonicalize_root(root)?;
     eprintln!("Reindexing {} (force={})", root.display(), force);
 
-    let index_path = claude_context::indexer::walker::index_storage_path(&root);
+    let index_path = code_memory::indexer::walker::index_storage_path(&root);
     if force && index_path.exists() {
         std::fs::remove_dir_all(&index_path)?;
     }
 
-    let code_index = claude_context::indexer::code_index::CodeIndex::open_or_create(&index_path)?;
-    let stats = claude_context::indexer::walker::index_project(&root, &code_index)?;
+    let code_index = code_memory::indexer::code_index::CodeIndex::open_or_create(&index_path)?;
+    let stats = code_memory::indexer::walker::index_project(&root, &code_index)?;
 
     eprintln!(
         "Indexed {} files ({} skipped) with {} symbols in {}ms",
@@ -133,14 +137,14 @@ async fn cmd_search(
 ) -> Result<()> {
     let root = canonicalize_root(root)?;
 
-    let index_path = claude_context::indexer::walker::index_storage_path(&root);
+    let index_path = code_memory::indexer::walker::index_storage_path(&root);
     if !index_path.exists() {
         eprintln!("No index found. Run `code-memory reindex` first.");
         return Ok(());
     }
 
-    let code_index = claude_context::indexer::code_index::CodeIndex::open_or_create(&index_path)?;
-    let search = claude_context::search::fulltext::FullTextSearch::new(
+    let code_index = code_memory::indexer::code_index::CodeIndex::open_or_create(&index_path)?;
+    let search = code_memory::search::fulltext::FullTextSearch::new(
         code_index.index(),
         code_index.schema(),
     )?;
@@ -159,7 +163,11 @@ async fn cmd_search(
             result.path,
             result.score,
             result.language,
-            if result.symbols.is_empty() { "(none)" } else { &result.symbols },
+            if result.symbols.is_empty() {
+                "(none)"
+            } else {
+                &result.symbols
+            },
         );
     }
     Ok(())
@@ -168,7 +176,7 @@ async fn cmd_search(
 async fn cmd_stats(root: PathBuf) -> Result<()> {
     let root = canonicalize_root(root)?;
     let config_dir = root.join(".code-memory");
-    let index_path = claude_context::indexer::walker::index_storage_path(&root);
+    let index_path = code_memory::indexer::walker::index_storage_path(&root);
 
     println!("code-memory v{}", env!("CARGO_PKG_VERSION"));
     println!("Project root: {}", root.display());
@@ -178,7 +186,11 @@ async fn cmd_stats(root: PathBuf) -> Result<()> {
     );
     println!(
         "Index: {}",
-        if index_path.exists() { "built" } else { "not built (run `code-memory reindex`)" }
+        if index_path.exists() {
+            "built"
+        } else {
+            "not built (run `code-memory reindex`)"
+        }
     );
     println!("Index path: {}", index_path.display());
 
@@ -194,7 +206,7 @@ async fn cmd_stats(root: PathBuf) -> Result<()> {
     }
 
     // Git info
-    match claude_context::git::history::GitHistory::discover(&root) {
+    match code_memory::git::history::GitHistory::discover(&root) {
         Ok(git) => {
             let commits = git.walk_commits(1).unwrap_or_default();
             if !commits.is_empty() {
@@ -263,10 +275,7 @@ async fn cmd_import(root: PathBuf, input: PathBuf) -> Result<()> {
         }
     }
 
-    std::fs::write(
-        &knowledge_file,
-        serde_json::to_string_pretty(&entries)?,
-    )?;
+    std::fs::write(&knowledge_file, serde_json::to_string_pretty(&entries)?)?;
 
     eprintln!(
         "Imported {} new entries (total: {}) from {}",
@@ -287,7 +296,10 @@ async fn cmd_sessions(top: usize, min_confidence: f32, format: &str) -> Result<(
         return Ok(());
     }
 
-    eprintln!("Analyzing Claude Code sessions in {}...", history_path.display());
+    eprintln!(
+        "Analyzing Claude Code sessions in {}...",
+        history_path.display()
+    );
 
     let mut tracker = SessionTracker::new(history_path);
     let events = tracker.analyze_all_sessions();
@@ -307,16 +319,20 @@ async fn cmd_sessions(top: usize, min_confidence: f32, format: &str) -> Result<(
     println!("================================\n");
 
     // Events summary
-    let decisions: Vec<&SessionEvent> = events.iter()
+    let decisions: Vec<&SessionEvent> = events
+        .iter()
         .filter(|e| e.event_type == SessionEventType::ArchitecturalDecision)
         .collect();
-    let errors: Vec<&SessionEvent> = events.iter()
+    let errors: Vec<&SessionEvent> = events
+        .iter()
         .filter(|e| e.event_type == SessionEventType::ErrorAndFix)
         .collect();
-    let tests: Vec<&SessionEvent> = events.iter()
+    let tests: Vec<&SessionEvent> = events
+        .iter()
         .filter(|e| e.event_type == SessionEventType::TestWritten)
         .collect();
-    let refactors: Vec<&SessionEvent> = events.iter()
+    let refactors: Vec<&SessionEvent> = events
+        .iter()
         .filter(|e| e.event_type == SessionEventType::Refactoring)
         .collect();
 
