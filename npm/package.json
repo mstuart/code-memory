@@ -22,7 +22,13 @@
     "code-memory": "bin/code-memory"
   },
   "scripts": {
-    "postinstall": "node scripts/install.js"
+    "postinstall": "node scripts/install.js",
+    "check": "ultracite check",
+    "fix": "ultracite fix"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.6",
+    "ultracite": "7.10.2"
   },
   "files": [
     "bin/",
