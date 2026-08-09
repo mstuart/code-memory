@@ -7,11 +7,13 @@
 <p align="center">
   <a href="https://github.com/mstuart/code-memory/actions/workflows/ci.yml"><img src="https://github.com/mstuart/code-memory/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/rust-stable-orange.svg" alt="Rust">
+  <a href="https://deepwiki.com/mstuart/code-memory"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 </p>
 
 ---
 [![npm version](https://badge.fury.io/js/code-memory.svg)](https://www.npmjs.com/package/code-memory)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Socket](https://socket.dev/api/badge/npm/package/code-memory)](https://socket.dev/npm/package/code-memory)
 
 Code Memory is an MCP (Model Context Protocol) server that gives AI coding assistants long-term memory of your codebase through semantic search, git history analysis, and intelligent context preservation.
 
