@@ -9,15 +9,65 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d test_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+      - name: Initialize test database
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d test_db <<'SQL'
+          CREATE TABLE workspace_members (
+            team_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+          CREATE TABLE knowledge_base (
+            id TEXT PRIMARY KEY DEFAULT md5(random()::text || clock_timestamp()::text),
+            team_id TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            content_hash TEXT NOT NULL,
+            embedding REAL[],
+            metadata JSONB,
+            user_id TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+          CREATE TABLE pending_knowledge (
+            id TEXT PRIMARY KEY DEFAULT md5(random()::text || clock_timestamp()::text),
+            file_path TEXT NOT NULL,
+            content_hash TEXT NOT NULL,
+            submitted_by TEXT NOT NULL,
+            team_id TEXT NOT NULL,
+            status TEXT NOT NULL,
+            reviewed_by TEXT,
+            reviewed_at TIMESTAMPTZ,
+            rejection_reason TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+          SQL
       - run: cargo fmt --package code-memory -- --check
       - run: cargo clippy -- -D warnings
       - run: cargo test
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/test_db
 
   ultracite:
     name: Ultracite
