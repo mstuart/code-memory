@@ -39,6 +39,12 @@ struct DecisionPattern {
     confidence: f32,
 }
 
+impl Default for DecisionExtractor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DecisionExtractor {
     pub fn new() -> Self {
         let patterns = vec![

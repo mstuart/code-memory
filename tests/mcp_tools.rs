@@ -79,7 +79,7 @@ fn setup_test_project() -> TempDir {
 
 #[test]
 fn test_tool_definitions_count() {
-    let defs = claude_context::mcp::tools::definitions();
+    let defs = code_memory::mcp::tools::definitions();
     // We expect 7 tools: search_code, explain_code, trace_decision,
     // find_related, remember, index_project, get_session_patterns
     assert_eq!(defs.len(), 7);
@@ -87,7 +87,7 @@ fn test_tool_definitions_count() {
 
 #[test]
 fn test_tool_definitions_names() {
-    let defs = claude_context::mcp::tools::definitions();
+    let defs = code_memory::mcp::tools::definitions();
     let names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
     assert!(names.contains(&"search_code"));
     assert!(names.contains(&"explain_code"));
@@ -100,7 +100,7 @@ fn test_tool_definitions_names() {
 
 #[test]
 fn test_tool_definitions_have_schemas() {
-    let defs = claude_context::mcp::tools::definitions();
+    let defs = code_memory::mcp::tools::definitions();
     for def in &defs {
         assert!(!def.name.is_empty(), "Tool name should not be empty");
         assert!(
@@ -118,7 +118,7 @@ fn test_tool_definitions_have_schemas() {
 
 #[test]
 fn test_search_code_schema_requires_query() {
-    let defs = claude_context::mcp::tools::definitions();
+    let defs = code_memory::mcp::tools::definitions();
     let search = defs.iter().find(|d| d.name == "search_code").unwrap();
     let required = search.input_schema["required"].as_array().unwrap();
     assert!(
@@ -129,7 +129,7 @@ fn test_search_code_schema_requires_query() {
 
 #[test]
 fn test_remember_schema_requires_topic_and_content() {
-    let defs = claude_context::mcp::tools::definitions();
+    let defs = code_memory::mcp::tools::definitions();
     let remember = defs.iter().find(|d| d.name == "remember").unwrap();
     let required = remember.input_schema["required"].as_array().unwrap();
     let required_strs: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
@@ -144,10 +144,10 @@ fn test_remember_schema_requires_topic_and_content() {
 #[tokio::test]
 async fn test_dispatch_unknown_tool() {
     let dir = TempDir::new().unwrap();
-    let result = claude_context::mcp::tools::dispatch("nonexistent_tool", None, dir.path()).await;
+    let result = code_memory::mcp::tools::dispatch("nonexistent_tool", None, dir.path()).await;
     assert!(result.is_error.unwrap_or(false));
     let text = match &result.content[0] {
-        claude_context::mcp::protocol::ToolContent::Text { text } => text.clone(),
+        code_memory::mcp::protocol::ToolContent::Text { text } => text.clone(),
     };
     assert!(text.contains("Unknown tool"));
 }
@@ -156,10 +156,10 @@ async fn test_dispatch_unknown_tool() {
 async fn test_dispatch_search_code_missing_query() {
     let dir = TempDir::new().unwrap();
     let result =
-        claude_context::mcp::tools::dispatch("search_code", Some(json!({})), dir.path()).await;
+        code_memory::mcp::tools::dispatch("search_code", Some(json!({})), dir.path()).await;
     assert!(result.is_error.unwrap_or(false));
     let text = match &result.content[0] {
-        claude_context::mcp::protocol::ToolContent::Text { text } => text.clone(),
+        code_memory::mcp::protocol::ToolContent::Text { text } => text.clone(),
     };
     assert!(text.contains("Missing required parameter"));
 }
@@ -168,7 +168,7 @@ async fn test_dispatch_search_code_missing_query() {
 async fn test_dispatch_explain_code_missing_symbol() {
     let dir = TempDir::new().unwrap();
     let result =
-        claude_context::mcp::tools::dispatch("explain_code", Some(json!({})), dir.path()).await;
+        code_memory::mcp::tools::dispatch("explain_code", Some(json!({})), dir.path()).await;
     assert!(result.is_error.unwrap_or(false));
 }
 
@@ -176,7 +176,7 @@ async fn test_dispatch_explain_code_missing_symbol() {
 async fn test_dispatch_trace_decision_missing_topic() {
     let dir = TempDir::new().unwrap();
     let result =
-        claude_context::mcp::tools::dispatch("trace_decision", Some(json!({})), dir.path()).await;
+        code_memory::mcp::tools::dispatch("trace_decision", Some(json!({})), dir.path()).await;
     assert!(result.is_error.unwrap_or(false));
 }
 
@@ -184,23 +184,19 @@ async fn test_dispatch_trace_decision_missing_topic() {
 async fn test_dispatch_find_related_missing_file() {
     let dir = TempDir::new().unwrap();
     let result =
-        claude_context::mcp::tools::dispatch("find_related", Some(json!({})), dir.path()).await;
+        code_memory::mcp::tools::dispatch("find_related", Some(json!({})), dir.path()).await;
     assert!(result.is_error.unwrap_or(false));
 }
 
 #[tokio::test]
 async fn test_dispatch_remember_missing_params() {
     let dir = TempDir::new().unwrap();
-    let result =
-        claude_context::mcp::tools::dispatch("remember", Some(json!({})), dir.path()).await;
+    let result = code_memory::mcp::tools::dispatch("remember", Some(json!({})), dir.path()).await;
     assert!(result.is_error.unwrap_or(false));
 
-    let result = claude_context::mcp::tools::dispatch(
-        "remember",
-        Some(json!({"topic": "test"})),
-        dir.path(),
-    )
-    .await;
+    let result =
+        code_memory::mcp::tools::dispatch("remember", Some(json!({"topic": "test"})), dir.path())
+            .await;
     assert!(result.is_error.unwrap_or(false));
 }
 
@@ -211,7 +207,7 @@ async fn test_dispatch_remember_missing_params() {
 #[tokio::test]
 async fn test_index_project_tool() {
     let dir = setup_test_project();
-    let result = claude_context::mcp::tools::dispatch(
+    let result = code_memory::mcp::tools::dispatch(
         "index_project",
         Some(json!({"force": true})),
         dir.path(),
@@ -219,7 +215,7 @@ async fn test_index_project_tool() {
     .await;
     assert!(result.is_error.is_none(), "index_project should succeed");
     let text = match &result.content[0] {
-        claude_context::mcp::protocol::ToolContent::Text { text } => text.clone(),
+        code_memory::mcp::protocol::ToolContent::Text { text } => text.clone(),
     };
     assert!(text.contains("Reindexed project"));
     assert!(text.contains("Files indexed:"));
@@ -229,15 +225,15 @@ async fn test_index_project_tool() {
 async fn test_index_project_incremental() {
     let dir = setup_test_project();
     // First force index
-    claude_context::mcp::tools::dispatch("index_project", Some(json!({"force": true})), dir.path())
+    code_memory::mcp::tools::dispatch("index_project", Some(json!({"force": true})), dir.path())
         .await;
 
     // Second call without force should report up to date
     let result =
-        claude_context::mcp::tools::dispatch("index_project", Some(json!({})), dir.path()).await;
+        code_memory::mcp::tools::dispatch("index_project", Some(json!({})), dir.path()).await;
     assert!(result.is_error.is_none());
     let text = match &result.content[0] {
-        claude_context::mcp::protocol::ToolContent::Text { text } => text.clone(),
+        code_memory::mcp::protocol::ToolContent::Text { text } => text.clone(),
     };
     assert!(text.contains("Index is up to date") || text.contains("Files indexed"));
 }
@@ -245,10 +241,10 @@ async fn test_index_project_incremental() {
 #[tokio::test]
 async fn test_remember_and_recall() {
     let dir = TempDir::new().unwrap();
-    let config_dir = dir.path().join(".claude-context");
+    let config_dir = dir.path().join(".code-memory");
     fs::create_dir_all(&config_dir).unwrap();
 
-    let result = claude_context::mcp::tools::dispatch(
+    let result = code_memory::mcp::tools::dispatch(
         "remember",
         Some(json!({
             "topic": "auth-pattern",
@@ -260,7 +256,7 @@ async fn test_remember_and_recall() {
     .await;
     assert!(result.is_error.is_none());
     let text = match &result.content[0] {
-        claude_context::mcp::protocol::ToolContent::Text { text } => text.clone(),
+        code_memory::mcp::protocol::ToolContent::Text { text } => text.clone(),
     };
     assert!(text.contains("Remembered 'auth-pattern'"));
     assert!(text.contains("1 total entries"));
@@ -282,11 +278,11 @@ async fn test_remember_and_recall() {
 #[tokio::test]
 async fn test_remember_updates_existing() {
     let dir = TempDir::new().unwrap();
-    let config_dir = dir.path().join(".claude-context");
+    let config_dir = dir.path().join(".code-memory");
     fs::create_dir_all(&config_dir).unwrap();
 
     // First entry
-    claude_context::mcp::tools::dispatch(
+    code_memory::mcp::tools::dispatch(
         "remember",
         Some(json!({
             "topic": "db-strategy",
@@ -297,7 +293,7 @@ async fn test_remember_updates_existing() {
     .await;
 
     // Update same topic
-    claude_context::mcp::tools::dispatch(
+    code_memory::mcp::tools::dispatch(
         "remember",
         Some(json!({
             "topic": "db-strategy",
@@ -318,11 +314,11 @@ async fn test_remember_updates_existing() {
 async fn test_get_session_patterns() {
     let dir = TempDir::new().unwrap();
     let result =
-        claude_context::mcp::tools::dispatch("get_session_patterns", Some(json!({})), dir.path())
+        code_memory::mcp::tools::dispatch("get_session_patterns", Some(json!({})), dir.path())
             .await;
     assert!(result.is_error.is_none());
     let text = match &result.content[0] {
-        claude_context::mcp::protocol::ToolContent::Text { text } => text.clone(),
+        code_memory::mcp::protocol::ToolContent::Text { text } => text.clone(),
     };
     // Should return some output even with no history
     assert!(
@@ -335,7 +331,7 @@ async fn test_get_session_patterns() {
 async fn test_trace_decision_with_git() {
     let dir = setup_test_project();
 
-    let result = claude_context::mcp::tools::dispatch(
+    let result = code_memory::mcp::tools::dispatch(
         "trace_decision",
         Some(json!({"topic": "Rust"})),
         dir.path(),
@@ -343,7 +339,7 @@ async fn test_trace_decision_with_git() {
     .await;
     assert!(result.is_error.is_none());
     let text = match &result.content[0] {
-        claude_context::mcp::protocol::ToolContent::Text { text } => text.clone(),
+        code_memory::mcp::protocol::ToolContent::Text { text } => text.clone(),
     };
     // Should find the "decision: chose Rust" commit
     assert!(
@@ -357,7 +353,7 @@ async fn test_trace_decision_with_git() {
 async fn test_trace_decision_no_results() {
     let dir = setup_test_project();
 
-    let result = claude_context::mcp::tools::dispatch(
+    let result = code_memory::mcp::tools::dispatch(
         "trace_decision",
         Some(json!({"topic": "quantum_computing_xyz_nothing"})),
         dir.path(),
@@ -365,7 +361,7 @@ async fn test_trace_decision_no_results() {
     .await;
     assert!(result.is_error.is_none());
     let text = match &result.content[0] {
-        claude_context::mcp::protocol::ToolContent::Text { text } => text.clone(),
+        code_memory::mcp::protocol::ToolContent::Text { text } => text.clone(),
     };
     assert!(text.contains("No decisions found"));
 }
@@ -376,7 +372,7 @@ async fn test_trace_decision_no_results() {
 
 #[test]
 fn test_call_tool_result_text_serialization() {
-    let result = claude_context::mcp::protocol::CallToolResult::text("hello world".to_string());
+    let result = code_memory::mcp::protocol::CallToolResult::text("hello world".to_string());
     let json = serde_json::to_value(&result).unwrap();
     assert_eq!(json["content"][0]["type"], "text");
     assert_eq!(json["content"][0]["text"], "hello world");
@@ -390,7 +386,7 @@ fn test_call_tool_result_text_serialization() {
 #[test]
 fn test_call_tool_result_error_serialization() {
     let result =
-        claude_context::mcp::protocol::CallToolResult::error("something broke".to_string());
+        code_memory::mcp::protocol::CallToolResult::error("something broke".to_string());
     let json = serde_json::to_value(&result).unwrap();
     assert_eq!(json["content"][0]["type"], "text");
     assert_eq!(json["content"][0]["text"], "something broke");
@@ -399,7 +395,7 @@ fn test_call_tool_result_error_serialization() {
 
 #[test]
 fn test_jsonrpc_response_success() {
-    let resp = claude_context::mcp::protocol::JsonRpcResponse::success(
+    let resp = code_memory::mcp::protocol::JsonRpcResponse::success(
         Some(json!(1)),
         json!({"ok": true}),
     );
@@ -412,7 +408,7 @@ fn test_jsonrpc_response_success() {
 
 #[test]
 fn test_jsonrpc_response_error() {
-    let resp = claude_context::mcp::protocol::JsonRpcResponse::error(
+    let resp = code_memory::mcp::protocol::JsonRpcResponse::error(
         Some(json!(2)),
         -32600,
         "Invalid Request".to_string(),
@@ -438,7 +434,7 @@ fn test_jsonrpc_request_deserialization() {
             }
         }
     });
-    let req: claude_context::mcp::protocol::JsonRpcRequest = serde_json::from_value(input).unwrap();
+    let req: code_memory::mcp::protocol::JsonRpcRequest = serde_json::from_value(input).unwrap();
     assert_eq!(req.method, "tools/call");
     assert!(req.params.is_some());
 }
@@ -452,8 +448,7 @@ fn test_call_tool_params_deserialization() {
             "max_results": 5
         }
     });
-    let params: claude_context::mcp::protocol::CallToolParams =
-        serde_json::from_value(input).unwrap();
+    let params: code_memory::mcp::protocol::CallToolParams = serde_json::from_value(input).unwrap();
     assert_eq!(params.name, "search_code");
     assert!(params.arguments.is_some());
     assert_eq!(params.arguments.unwrap()["query"], "test");
@@ -466,7 +461,7 @@ fn test_call_tool_params_deserialization() {
 #[tokio::test]
 async fn test_handler_execute_tool() {
     let dir = TempDir::new().unwrap();
-    let result = claude_context::mcp::handlers::execute_tool(
+    let result = code_memory::mcp::handlers::execute_tool(
         "search_code",
         Some(json!({"query": "test"})),
         dir.path(),
@@ -479,7 +474,6 @@ async fn test_handler_execute_tool() {
 #[tokio::test]
 async fn test_handler_execute_unknown_tool() {
     let dir = TempDir::new().unwrap();
-    let result =
-        claude_context::mcp::handlers::execute_tool("does_not_exist", None, dir.path()).await;
+    let result = code_memory::mcp::handlers::execute_tool("does_not_exist", None, dir.path()).await;
     assert!(result.is_error.unwrap_or(false));
 }

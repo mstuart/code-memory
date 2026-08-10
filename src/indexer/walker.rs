@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use tracing::{debug, warn};
 
-use super::code_index::{CodeIndex, CodeSchema};
+use super::code_index::CodeIndex;
 use super::parser;
 
 /// Stats from an indexing operation
@@ -45,7 +45,7 @@ pub fn index_project(project_path: &Path, code_index: &CodeIndex) -> Result<Inde
         };
 
         // Only process files
-        if !entry.file_type().map_or(false, |ft| ft.is_file()) {
+        if !entry.file_type().is_some_and(|ft| ft.is_file()) {
             continue;
         }
 

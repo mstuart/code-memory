@@ -78,12 +78,6 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-feature
 # Web UI
 tiny_http = "0.12"
 
-# Audit logging
-audit = { path = "../shared/audit" }
-
-# Redis caching
-cache = { path = "../shared/cache" }
-
 # PostgreSQL for team workspaces
 tokio-postgres = { version = "0.7", features = ["with-serde_json-1", "with-chrono-0_4"] }
 

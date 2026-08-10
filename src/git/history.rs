@@ -87,8 +87,8 @@ impl GitHistory {
         let author = commit.author();
 
         let mut files_changed = Vec::new();
-        let mut insertions = 0;
-        let mut deletions = 0;
+        let insertions;
+        let deletions;
 
         let tree = commit.tree()?;
         if commit.parent_count() > 0 {
@@ -241,7 +241,7 @@ impl GitHistory {
         }
 
         let mut files: Vec<(String, i64)> = seen.into_iter().collect();
-        files.sort_by(|a, b| b.1.cmp(&a.1));
+        files.sort_by_key(|b| std::cmp::Reverse(b.1));
         files.truncate(limit);
         Ok(files)
     }
