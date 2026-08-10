@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -87,12 +86,11 @@ impl SessionTracker {
         if let Ok(entries) = fs::read_dir(&self.history_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.extension().and_then(|e| e.to_str()) == Some("json")
-                    || path.extension().and_then(|e| e.to_str()) == Some("jsonl")
+                if (path.extension().and_then(|e| e.to_str()) == Some("json")
+                    || path.extension().and_then(|e| e.to_str()) == Some("jsonl"))
+                    && !sessions.contains(&path)
                 {
-                    if !sessions.contains(&path) {
-                        sessions.push(path);
-                    }
+                    sessions.push(path);
                 }
             }
         }

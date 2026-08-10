@@ -29,6 +29,12 @@ pub struct PatternLibrary {
     patterns: Vec<Pattern>,
 }
 
+impl Default for PatternLibrary {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PatternLibrary {
     pub fn new() -> Self {
         Self {
@@ -119,7 +125,7 @@ impl PatternLibrary {
     /// Get the top N most observed patterns.
     pub fn top_patterns(&self, n: usize) -> Vec<&Pattern> {
         let mut sorted: Vec<&Pattern> = self.patterns.iter().collect();
-        sorted.sort_by(|a, b| b.observation_count.cmp(&a.observation_count));
+        sorted.sort_by_key(|b| std::cmp::Reverse(b.observation_count));
         sorted.truncate(n);
         sorted
     }

@@ -1,7 +1,7 @@
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::git::history::GitHistory;
 use crate::indexer::code_index::CodeIndex;
@@ -532,7 +532,7 @@ async fn handle_find_related(args: &Value, project_root: &Path) -> CallToolResul
             .build();
 
         for entry in walker.flatten() {
-            if !entry.file_type().map_or(false, |ft| ft.is_file()) {
+            if !entry.file_type().is_some_and(|ft| ft.is_file()) {
                 continue;
             }
             let path = entry.path();
@@ -603,7 +603,7 @@ async fn handle_find_related(args: &Value, project_root: &Path) -> CallToolResul
         }
 
         let mut related: Vec<(String, usize)> = cochange_freq.into_iter().collect();
-        related.sort_by(|a, b| b.1.cmp(&a.1));
+        related.sort_by_key(|b| std::cmp::Reverse(b.1));
         related.truncate(15);
 
         if !related.is_empty() {

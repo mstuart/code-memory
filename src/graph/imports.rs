@@ -34,6 +34,12 @@ pub struct ImportParser {
     go_import: Regex,
 }
 
+impl Default for ImportParser {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ImportParser {
     pub fn new() -> Self {
         Self {
