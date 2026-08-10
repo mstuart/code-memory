@@ -1,3 +1,3 @@
 pub mod workflow;
 
-pub use workflow::{ApprovalWorkflow, PendingKnowledge, ApprovalStatus};
+pub use workflow::{ApprovalStatus, ApprovalWorkflow, PendingKnowledge};

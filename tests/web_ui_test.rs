@@ -14,8 +14,8 @@ fn test_web_server_starts() {
     thread::sleep(Duration::from_millis(500));
 
     // Test connection
-    let response = reqwest::blocking::get("http://127.0.0.1:8081")
-        .expect("Failed to connect to server");
+    let response =
+        reqwest::blocking::get("http://127.0.0.1:8081").expect("Failed to connect to server");
 
     assert_eq!(response.status(), 200);
 
@@ -32,8 +32,8 @@ fn test_search_endpoint() {
 
     thread::sleep(Duration::from_millis(500));
 
-    let response = reqwest::blocking::get("http://127.0.0.1:8082/search?q=test")
-        .expect("Failed to connect");
+    let response =
+        reqwest::blocking::get("http://127.0.0.1:8082/search?q=test").expect("Failed to connect");
 
     assert_eq!(response.status(), 200);
 

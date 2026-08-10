@@ -62,54 +62,112 @@ pub fn extract_symbols(content: &str, language: &str) -> Vec<Symbol> {
 
 fn extract_rust_symbols(line: &str, line_num: usize, symbols: &mut Vec<Symbol>) {
     if let Some(name) = extract_after_keyword(line, "fn ") {
-        symbols.push(Symbol { name, kind: SymbolKind::Function, line: line_num });
+        symbols.push(Symbol {
+            name,
+            kind: SymbolKind::Function,
+            line: line_num,
+        });
     } else if let Some(name) = extract_after_keyword(line, "struct ") {
-        symbols.push(Symbol { name, kind: SymbolKind::Struct, line: line_num });
+        symbols.push(Symbol {
+            name,
+            kind: SymbolKind::Struct,
+            line: line_num,
+        });
     } else if let Some(name) = extract_after_keyword(line, "enum ") {
-        symbols.push(Symbol { name, kind: SymbolKind::Enum, line: line_num });
+        symbols.push(Symbol {
+            name,
+            kind: SymbolKind::Enum,
+            line: line_num,
+        });
     } else if let Some(name) = extract_after_keyword(line, "trait ") {
-        symbols.push(Symbol { name, kind: SymbolKind::Trait, line: line_num });
+        symbols.push(Symbol {
+            name,
+            kind: SymbolKind::Trait,
+            line: line_num,
+        });
     } else if let Some(name) = extract_after_keyword(line, "type ") {
-        symbols.push(Symbol { name, kind: SymbolKind::Type, line: line_num });
+        symbols.push(Symbol {
+            name,
+            kind: SymbolKind::Type,
+            line: line_num,
+        });
     } else if let Some(name) = extract_after_keyword(line, "mod ") {
-        symbols.push(Symbol { name, kind: SymbolKind::Module, line: line_num });
+        symbols.push(Symbol {
+            name,
+            kind: SymbolKind::Module,
+            line: line_num,
+        });
     } else if let Some(name) = extract_after_keyword(line, "const ") {
-        symbols.push(Symbol { name, kind: SymbolKind::Constant, line: line_num });
+        symbols.push(Symbol {
+            name,
+            kind: SymbolKind::Constant,
+            line: line_num,
+        });
     }
 }
 
 fn extract_ts_symbols(line: &str, line_num: usize, symbols: &mut Vec<Symbol>) {
     if let Some(name) = extract_after_keyword(line, "function ") {
-        symbols.push(Symbol { name, kind: SymbolKind::Function, line: line_num });
+        symbols.push(Symbol {
+            name,
+            kind: SymbolKind::Function,
+            line: line_num,
+        });
     } else if let Some(name) = extract_after_keyword(line, "class ") {
-        symbols.push(Symbol { name, kind: SymbolKind::Class, line: line_num });
+        symbols.push(Symbol {
+            name,
+            kind: SymbolKind::Class,
+            line: line_num,
+        });
     } else if let Some(name) = extract_after_keyword(line, "interface ") {
-        symbols.push(Symbol { name, kind: SymbolKind::Type, line: line_num });
+        symbols.push(Symbol {
+            name,
+            kind: SymbolKind::Type,
+            line: line_num,
+        });
     } else if let Some(name) = extract_after_keyword(line, "type ") {
-        symbols.push(Symbol { name, kind: SymbolKind::Type, line: line_num });
+        symbols.push(Symbol {
+            name,
+            kind: SymbolKind::Type,
+            line: line_num,
+        });
     } else if let Some(name) = extract_after_keyword(line, "enum ") {
-        symbols.push(Symbol { name, kind: SymbolKind::Enum, line: line_num });
+        symbols.push(Symbol {
+            name,
+            kind: SymbolKind::Enum,
+            line: line_num,
+        });
     }
 }
 
 fn extract_python_symbols(line: &str, line_num: usize, symbols: &mut Vec<Symbol>) {
     if let Some(name) = extract_after_keyword(line, "def ") {
-        symbols.push(Symbol { name, kind: SymbolKind::Function, line: line_num });
+        symbols.push(Symbol {
+            name,
+            kind: SymbolKind::Function,
+            line: line_num,
+        });
     } else if let Some(name) = extract_after_keyword(line, "class ") {
-        symbols.push(Symbol { name, kind: SymbolKind::Class, line: line_num });
+        symbols.push(Symbol {
+            name,
+            kind: SymbolKind::Class,
+            line: line_num,
+        });
     }
 }
 
 /// Extract an identifier following a keyword
 fn extract_after_keyword(line: &str, keyword: &str) -> Option<String> {
-    let rest = line.strip_prefix("pub ")
+    let rest = line
+        .strip_prefix("pub ")
         .or_else(|| line.strip_prefix("pub(crate) "))
         .or_else(|| line.strip_prefix("export "))
         .or_else(|| line.strip_prefix("async "))
         .unwrap_or(line);
 
     if let Some(after) = rest.strip_prefix(keyword) {
-        let name: String = after.chars()
+        let name: String = after
+            .chars()
             .take_while(|c| c.is_alphanumeric() || *c == '_')
             .collect();
         if !name.is_empty() {

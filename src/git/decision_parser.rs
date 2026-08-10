@@ -25,9 +25,7 @@ impl DecisionParser {
             r"moving to",
         ];
 
-        let decision_keywords = keywords.iter()
-            .map(|k| Regex::new(k).unwrap())
-            .collect();
+        let decision_keywords = keywords.iter().map(|k| Regex::new(k).unwrap()).collect();
 
         Self { decision_keywords }
     }
@@ -36,7 +34,9 @@ impl DecisionParser {
         let mut decisions = Vec::new();
 
         // Check if message contains decision keywords
-        let has_decision = self.decision_keywords.iter()
+        let has_decision = self
+            .decision_keywords
+            .iter()
             .any(|re| re.is_match(&message.to_lowercase()));
 
         if !has_decision {
@@ -84,7 +84,10 @@ fn extract_migration_pair(message: &str) -> (Option<String>, String) {
 
     if let Some(caps) = from_to_re.captures(message) {
         let from = caps.get(1).map(|m| m.as_str().to_string());
-        let to = caps.get(2).map(|m| m.as_str().to_string()).unwrap_or_default();
+        let to = caps
+            .get(2)
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_default();
         (from, to)
     } else {
         (None, String::new())
@@ -96,7 +99,9 @@ fn extract_technology(message: &str) -> String {
     let tech_re = Regex::new(r"(?i)(GraphQL|REST|microservices|monolith|PostgreSQL|MongoDB|React|Vue|Angular|TypeScript|JavaScript)").unwrap();
 
     if let Some(cap) = tech_re.captures(message) {
-        cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default()
+        cap.get(1)
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_default()
     } else {
         String::new()
     }

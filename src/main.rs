@@ -6,15 +6,14 @@ use tracing_subscriber::EnvFilter;
 
 use code_memory::cli::{Cli, Command};
 use code_memory::mcp::server::McpServer;
-use code_memory::sessions::{SessionTracker, SessionEvent, SessionEventType};
+use code_memory::sessions::{SessionEvent, SessionEventType, SessionTracker};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize logging to stderr (never stdout — that's for MCP JSON-RPC)
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info")),
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
         .with_writer(std::io::stderr)
         .init();
@@ -35,15 +34,20 @@ async fn main() -> Result<()> {
         }
         Some(Command::Init { path }) => cmd_init(path).await,
         Some(Command::Reindex { root, force }) => cmd_reindex(root, force).await,
-        Some(Command::Search { query, limit, language, root }) => {
-            cmd_search(root, &query, limit, language.as_deref()).await
-        }
+        Some(Command::Search {
+            query,
+            limit,
+            language,
+            root,
+        }) => cmd_search(root, &query, limit, language.as_deref()).await,
         Some(Command::Stats { root }) => cmd_stats(root).await,
         Some(Command::Export { output, root }) => cmd_export(root, output).await,
         Some(Command::Import { input, root }) => cmd_import(root, input).await,
-        Some(Command::Sessions { top, min_confidence, format }) => {
-            cmd_sessions(top, min_confidence, &format).await
-        }
+        Some(Command::Sessions {
+            top,
+            min_confidence,
+            format,
+        }) => cmd_sessions(top, min_confidence, &format).await,
         Some(Command::Web { port }) => cmd_web(port).await,
     }
 }
@@ -160,7 +164,11 @@ async fn cmd_search(
             result.path,
             result.score,
             result.language,
-            if result.symbols.is_empty() { "(none)" } else { &result.symbols },
+            if result.symbols.is_empty() {
+                "(none)"
+            } else {
+                &result.symbols
+            },
         );
     }
     Ok(())
@@ -179,7 +187,11 @@ async fn cmd_stats(root: PathBuf) -> Result<()> {
     );
     println!(
         "Index: {}",
-        if index_path.exists() { "built" } else { "not built (run `code-memory reindex`)" }
+        if index_path.exists() {
+            "built"
+        } else {
+            "not built (run `code-memory reindex`)"
+        }
     );
     println!("Index path: {}", index_path.display());
 
@@ -264,10 +276,7 @@ async fn cmd_import(root: PathBuf, input: PathBuf) -> Result<()> {
         }
     }
 
-    std::fs::write(
-        &knowledge_file,
-        serde_json::to_string_pretty(&entries)?,
-    )?;
+    std::fs::write(&knowledge_file, serde_json::to_string_pretty(&entries)?)?;
 
     eprintln!(
         "Imported {} new entries (total: {}) from {}",
@@ -288,7 +297,10 @@ async fn cmd_sessions(top: usize, min_confidence: f32, format: &str) -> Result<(
         return Ok(());
     }
 
-    eprintln!("Analyzing Claude Code sessions in {}...", history_path.display());
+    eprintln!(
+        "Analyzing Claude Code sessions in {}...",
+        history_path.display()
+    );
 
     let mut tracker = SessionTracker::new(history_path);
     let events = tracker.analyze_all_sessions();
@@ -308,16 +320,20 @@ async fn cmd_sessions(top: usize, min_confidence: f32, format: &str) -> Result<(
     println!("================================\n");
 
     // Events summary
-    let decisions: Vec<&SessionEvent> = events.iter()
+    let decisions: Vec<&SessionEvent> = events
+        .iter()
         .filter(|e| e.event_type == SessionEventType::ArchitecturalDecision)
         .collect();
-    let errors: Vec<&SessionEvent> = events.iter()
+    let errors: Vec<&SessionEvent> = events
+        .iter()
         .filter(|e| e.event_type == SessionEventType::ErrorAndFix)
         .collect();
-    let tests: Vec<&SessionEvent> = events.iter()
+    let tests: Vec<&SessionEvent> = events
+        .iter()
         .filter(|e| e.event_type == SessionEventType::TestWritten)
         .collect();
-    let refactors: Vec<&SessionEvent> = events.iter()
+    let refactors: Vec<&SessionEvent> = events
+        .iter()
         .filter(|e| e.event_type == SessionEventType::Refactoring)
         .collect();
 

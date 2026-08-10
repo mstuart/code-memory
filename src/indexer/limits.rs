@@ -16,10 +16,11 @@ pub fn check_file_limit(current_count: usize, license: &LicenseStatus) -> Result
 pub fn get_file_count(index_path: &std::path::Path) -> Result<usize, String> {
     use tantivy::Index;
 
-    let index = Index::open_in_dir(index_path)
-        .map_err(|e| format!("Failed to open index: {}", e))?;
+    let index =
+        Index::open_in_dir(index_path).map_err(|e| format!("Failed to open index: {}", e))?;
 
-    let reader = index.reader()
+    let reader = index
+        .reader()
         .map_err(|e| format!("Failed to create reader: {}", e))?;
 
     let searcher = reader.searcher();

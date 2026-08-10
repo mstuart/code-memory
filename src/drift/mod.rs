@@ -1,3 +1,3 @@
 pub mod detector;
 
-pub use detector::{DriftDetector, DriftAlert};
+pub use detector::{DriftAlert, DriftDetector};

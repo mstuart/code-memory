@@ -1,4 +1,4 @@
-use code_memory::drift::detector::{DriftDetector, DriftAlert};
+use code_memory::drift::detector::{DriftAlert, DriftDetector};
 use code_memory::git::decision_parser::Decision;
 use std::path::PathBuf;
 
@@ -50,9 +50,7 @@ fn test_no_drift_when_consistent() {
 
     detector.add_decision(decision);
 
-    let current_files = vec![
-        PathBuf::from("src/api/rest/endpoints.ts"),
-    ];
+    let current_files = vec![PathBuf::from("src/api/rest/endpoints.ts")];
 
     detector.scan_files(&current_files);
 

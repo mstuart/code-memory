@@ -46,7 +46,11 @@ pub fn merge_results(
         .iter()
         .map(|r| r.score)
         .fold(0.0f32, f32::max);
-    let norm_factor = if max_keyword_score > 0.0 { max_keyword_score } else { 1.0 };
+    let norm_factor = if max_keyword_score > 0.0 {
+        max_keyword_score
+    } else {
+        1.0
+    };
 
     // Add keyword results
     for result in keyword_results {
@@ -70,8 +74,7 @@ pub fn merge_results(
             Some(existing) => {
                 existing.semantic_score = result.similarity;
                 existing.combined_score =
-                    existing.keyword_score * weights.keyword
-                    + result.similarity * weights.semantic;
+                    existing.keyword_score * weights.keyword + result.similarity * weights.semantic;
             }
             None => {
                 by_path.insert(
@@ -108,8 +111,18 @@ mod tests {
     #[test]
     fn test_merge_results_keyword_only() {
         let keyword = vec![
-            SearchResult { path: "a.rs".into(), symbols: "foo".into(), language: "rust".into(), score: 10.0 },
-            SearchResult { path: "b.rs".into(), symbols: "bar".into(), language: "rust".into(), score: 5.0 },
+            SearchResult {
+                path: "a.rs".into(),
+                symbols: "foo".into(),
+                language: "rust".into(),
+                score: 10.0,
+            },
+            SearchResult {
+                path: "b.rs".into(),
+                symbols: "bar".into(),
+                language: "rust".into(),
+                score: 5.0,
+            },
         ];
         let semantic: Vec<SemanticResult> = vec![];
 
@@ -123,8 +136,18 @@ mod tests {
     fn test_merge_results_semantic_only() {
         let keyword: Vec<SearchResult> = vec![];
         let semantic = vec![
-            SemanticResult { path: "a.rs".into(), symbols: "foo".into(), language: "rust".into(), similarity: 0.95 },
-            SemanticResult { path: "b.rs".into(), symbols: "bar".into(), language: "rust".into(), similarity: 0.5 },
+            SemanticResult {
+                path: "a.rs".into(),
+                symbols: "foo".into(),
+                language: "rust".into(),
+                similarity: 0.95,
+            },
+            SemanticResult {
+                path: "b.rs".into(),
+                symbols: "bar".into(),
+                language: "rust".into(),
+                similarity: 0.5,
+            },
         ];
 
         let results = merge_results(&keyword, &semantic, &HybridWeights::default(), 10);
@@ -135,17 +158,37 @@ mod tests {
     #[test]
     fn test_merge_results_hybrid() {
         let keyword = vec![
-            SearchResult { path: "a.rs".into(), symbols: "foo".into(), language: "rust".into(), score: 10.0 },
-            SearchResult { path: "b.rs".into(), symbols: "bar".into(), language: "rust".into(), score: 2.0 },
+            SearchResult {
+                path: "a.rs".into(),
+                symbols: "foo".into(),
+                language: "rust".into(),
+                score: 10.0,
+            },
+            SearchResult {
+                path: "b.rs".into(),
+                symbols: "bar".into(),
+                language: "rust".into(),
+                score: 2.0,
+            },
         ];
         let semantic = vec![
-            SemanticResult { path: "b.rs".into(), symbols: "bar".into(), language: "rust".into(), similarity: 0.99 },
-            SemanticResult { path: "c.rs".into(), symbols: "baz".into(), language: "rust".into(), similarity: 0.8 },
+            SemanticResult {
+                path: "b.rs".into(),
+                symbols: "bar".into(),
+                language: "rust".into(),
+                similarity: 0.99,
+            },
+            SemanticResult {
+                path: "c.rs".into(),
+                symbols: "baz".into(),
+                language: "rust".into(),
+                similarity: 0.8,
+            },
         ];
 
         let results = merge_results(&keyword, &semantic, &HybridWeights::default(), 10);
         assert_eq!(results.len(), 3); // a.rs, b.rs, c.rs
-        // b.rs should score high because it appears in both
+                                      // b.rs should score high because it appears in both
         let b_result = results.iter().find(|r| r.path == "b.rs").unwrap();
         assert!(b_result.keyword_score > 0.0);
         assert!(b_result.semantic_score > 0.0);
@@ -154,9 +197,24 @@ mod tests {
     #[test]
     fn test_merge_results_limit() {
         let keyword = vec![
-            SearchResult { path: "a.rs".into(), symbols: "".into(), language: "rust".into(), score: 10.0 },
-            SearchResult { path: "b.rs".into(), symbols: "".into(), language: "rust".into(), score: 5.0 },
-            SearchResult { path: "c.rs".into(), symbols: "".into(), language: "rust".into(), score: 1.0 },
+            SearchResult {
+                path: "a.rs".into(),
+                symbols: "".into(),
+                language: "rust".into(),
+                score: 10.0,
+            },
+            SearchResult {
+                path: "b.rs".into(),
+                symbols: "".into(),
+                language: "rust".into(),
+                score: 5.0,
+            },
+            SearchResult {
+                path: "c.rs".into(),
+                symbols: "".into(),
+                language: "rust".into(),
+                score: 1.0,
+            },
         ];
         let semantic: Vec<SemanticResult> = vec![];
 

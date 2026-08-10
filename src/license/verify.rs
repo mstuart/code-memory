@@ -3,7 +3,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(Debug, Clone)]
 pub enum LicenseStatus {
     Free,
-    Pro { expires_at: u64, features: Vec<String> },
+    Pro {
+        expires_at: u64,
+        features: Vec<String>,
+    },
 }
 
 impl LicenseStatus {
@@ -34,7 +37,8 @@ pub fn verify_license(key: &str) -> LicenseStatus {
         let expires_at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_secs() + 86400 * 365;
+            .as_secs()
+            + 86400 * 365;
 
         let status = LicenseStatus::Pro {
             expires_at,

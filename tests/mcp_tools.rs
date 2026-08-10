@@ -103,7 +103,11 @@ fn test_tool_definitions_have_schemas() {
     let defs = claude_context::mcp::tools::definitions();
     for def in &defs {
         assert!(!def.name.is_empty(), "Tool name should not be empty");
-        assert!(!def.description.is_empty(), "Tool {} should have a description", def.name);
+        assert!(
+            !def.description.is_empty(),
+            "Tool {} should have a description",
+            def.name
+        );
         assert!(
             def.input_schema.get("type").is_some(),
             "Tool {} should have an input schema with 'type'",
@@ -140,12 +144,7 @@ fn test_remember_schema_requires_topic_and_content() {
 #[tokio::test]
 async fn test_dispatch_unknown_tool() {
     let dir = TempDir::new().unwrap();
-    let result = claude_context::mcp::tools::dispatch(
-        "nonexistent_tool",
-        None,
-        dir.path(),
-    )
-    .await;
+    let result = claude_context::mcp::tools::dispatch("nonexistent_tool", None, dir.path()).await;
     assert!(result.is_error.unwrap_or(false));
     let text = match &result.content[0] {
         claude_context::mcp::protocol::ToolContent::Text { text } => text.clone(),
@@ -156,12 +155,8 @@ async fn test_dispatch_unknown_tool() {
 #[tokio::test]
 async fn test_dispatch_search_code_missing_query() {
     let dir = TempDir::new().unwrap();
-    let result = claude_context::mcp::tools::dispatch(
-        "search_code",
-        Some(json!({})),
-        dir.path(),
-    )
-    .await;
+    let result =
+        claude_context::mcp::tools::dispatch("search_code", Some(json!({})), dir.path()).await;
     assert!(result.is_error.unwrap_or(false));
     let text = match &result.content[0] {
         claude_context::mcp::protocol::ToolContent::Text { text } => text.clone(),
@@ -172,48 +167,32 @@ async fn test_dispatch_search_code_missing_query() {
 #[tokio::test]
 async fn test_dispatch_explain_code_missing_symbol() {
     let dir = TempDir::new().unwrap();
-    let result = claude_context::mcp::tools::dispatch(
-        "explain_code",
-        Some(json!({})),
-        dir.path(),
-    )
-    .await;
+    let result =
+        claude_context::mcp::tools::dispatch("explain_code", Some(json!({})), dir.path()).await;
     assert!(result.is_error.unwrap_or(false));
 }
 
 #[tokio::test]
 async fn test_dispatch_trace_decision_missing_topic() {
     let dir = TempDir::new().unwrap();
-    let result = claude_context::mcp::tools::dispatch(
-        "trace_decision",
-        Some(json!({})),
-        dir.path(),
-    )
-    .await;
+    let result =
+        claude_context::mcp::tools::dispatch("trace_decision", Some(json!({})), dir.path()).await;
     assert!(result.is_error.unwrap_or(false));
 }
 
 #[tokio::test]
 async fn test_dispatch_find_related_missing_file() {
     let dir = TempDir::new().unwrap();
-    let result = claude_context::mcp::tools::dispatch(
-        "find_related",
-        Some(json!({})),
-        dir.path(),
-    )
-    .await;
+    let result =
+        claude_context::mcp::tools::dispatch("find_related", Some(json!({})), dir.path()).await;
     assert!(result.is_error.unwrap_or(false));
 }
 
 #[tokio::test]
 async fn test_dispatch_remember_missing_params() {
     let dir = TempDir::new().unwrap();
-    let result = claude_context::mcp::tools::dispatch(
-        "remember",
-        Some(json!({})),
-        dir.path(),
-    )
-    .await;
+    let result =
+        claude_context::mcp::tools::dispatch("remember", Some(json!({})), dir.path()).await;
     assert!(result.is_error.unwrap_or(false));
 
     let result = claude_context::mcp::tools::dispatch(
@@ -238,10 +217,7 @@ async fn test_index_project_tool() {
         dir.path(),
     )
     .await;
-    assert!(
-        result.is_error.is_none(),
-        "index_project should succeed"
-    );
+    assert!(result.is_error.is_none(), "index_project should succeed");
     let text = match &result.content[0] {
         claude_context::mcp::protocol::ToolContent::Text { text } => text.clone(),
     };
@@ -253,20 +229,12 @@ async fn test_index_project_tool() {
 async fn test_index_project_incremental() {
     let dir = setup_test_project();
     // First force index
-    claude_context::mcp::tools::dispatch(
-        "index_project",
-        Some(json!({"force": true})),
-        dir.path(),
-    )
-    .await;
+    claude_context::mcp::tools::dispatch("index_project", Some(json!({"force": true})), dir.path())
+        .await;
 
     // Second call without force should report up to date
-    let result = claude_context::mcp::tools::dispatch(
-        "index_project",
-        Some(json!({})),
-        dir.path(),
-    )
-    .await;
+    let result =
+        claude_context::mcp::tools::dispatch("index_project", Some(json!({})), dir.path()).await;
     assert!(result.is_error.is_none());
     let text = match &result.content[0] {
         claude_context::mcp::protocol::ToolContent::Text { text } => text.clone(),
@@ -349,19 +317,17 @@ async fn test_remember_updates_existing() {
 #[tokio::test]
 async fn test_get_session_patterns() {
     let dir = TempDir::new().unwrap();
-    let result = claude_context::mcp::tools::dispatch(
-        "get_session_patterns",
-        Some(json!({})),
-        dir.path(),
-    )
-    .await;
+    let result =
+        claude_context::mcp::tools::dispatch("get_session_patterns", Some(json!({})), dir.path())
+            .await;
     assert!(result.is_error.is_none());
     let text = match &result.content[0] {
         claude_context::mcp::protocol::ToolContent::Text { text } => text.clone(),
     };
     // Should return some output even with no history
     assert!(
-        text.contains("Session Analysis Summary") || text.contains("No Claude Code session history")
+        text.contains("Session Analysis Summary")
+            || text.contains("No Claude Code session history")
     );
 }
 
@@ -415,12 +381,16 @@ fn test_call_tool_result_text_serialization() {
     assert_eq!(json["content"][0]["type"], "text");
     assert_eq!(json["content"][0]["text"], "hello world");
     // isError should be absent when not an error (skip_serializing_if = None)
-    assert!(json.get("isError").is_none(), "isError should not be present for success results");
+    assert!(
+        json.get("isError").is_none(),
+        "isError should not be present for success results"
+    );
 }
 
 #[test]
 fn test_call_tool_result_error_serialization() {
-    let result = claude_context::mcp::protocol::CallToolResult::error("something broke".to_string());
+    let result =
+        claude_context::mcp::protocol::CallToolResult::error("something broke".to_string());
     let json = serde_json::to_value(&result).unwrap();
     assert_eq!(json["content"][0]["type"], "text");
     assert_eq!(json["content"][0]["text"], "something broke");
@@ -429,8 +399,10 @@ fn test_call_tool_result_error_serialization() {
 
 #[test]
 fn test_jsonrpc_response_success() {
-    let resp =
-        claude_context::mcp::protocol::JsonRpcResponse::success(Some(json!(1)), json!({"ok": true}));
+    let resp = claude_context::mcp::protocol::JsonRpcResponse::success(
+        Some(json!(1)),
+        json!({"ok": true}),
+    );
     let json = serde_json::to_value(&resp).unwrap();
     assert_eq!(json["jsonrpc"], "2.0");
     assert_eq!(json["id"], 1);
@@ -466,8 +438,7 @@ fn test_jsonrpc_request_deserialization() {
             }
         }
     });
-    let req: claude_context::mcp::protocol::JsonRpcRequest =
-        serde_json::from_value(input).unwrap();
+    let req: claude_context::mcp::protocol::JsonRpcRequest = serde_json::from_value(input).unwrap();
     assert_eq!(req.method, "tools/call");
     assert!(req.params.is_some());
 }
@@ -508,11 +479,7 @@ async fn test_handler_execute_tool() {
 #[tokio::test]
 async fn test_handler_execute_unknown_tool() {
     let dir = TempDir::new().unwrap();
-    let result = claude_context::mcp::handlers::execute_tool(
-        "does_not_exist",
-        None,
-        dir.path(),
-    )
-    .await;
+    let result =
+        claude_context::mcp::handlers::execute_tool("does_not_exist", None, dir.path()).await;
     assert!(result.is_error.unwrap_or(false));
 }

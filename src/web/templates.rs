@@ -18,11 +18,13 @@ pub fn index_page() -> String {
     </form>
     <p>Pro-only feature. <a href="https://code-memory.com/pro">Upgrade to Pro</a></p>
 </body>
-</html>"#.to_string()
+</html>"#
+        .to_string()
 }
 
 pub fn search_results(query: &str) -> String {
-    format!(r#"<!DOCTYPE html>
+    format!(
+        r#"<!DOCTYPE html>
 <html>
 <head>
     <title>Search: {query}</title>
@@ -39,5 +41,7 @@ pub fn search_results(query: &str) -> String {
     </div>
     <p><a href="/">Back to search</a></p>
 </body>
-</html>"#, query = query)
+</html>"#,
+        query = query
+    )
 }

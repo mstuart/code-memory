@@ -1,5 +1,5 @@
 // File watcher for incremental index updates
-use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher as NotifyWatcher, Event};
+use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher as NotifyWatcher};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Receiver};

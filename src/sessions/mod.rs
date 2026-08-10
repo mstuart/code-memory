@@ -1,5 +1,5 @@
-pub mod tracker;
 pub mod patterns;
+pub mod tracker;
 
-pub use tracker::{SessionTracker, SessionEvent, SessionEventType, TranscriptEntry};
-pub use patterns::{PatternLibrary, Pattern, PatternType};
+pub use patterns::{Pattern, PatternLibrary, PatternType};
+pub use tracker::{SessionEvent, SessionEventType, SessionTracker, TranscriptEntry};

@@ -38,12 +38,15 @@ async fn test_shared_knowledge() {
 
     let workspace = TeamWorkspace::new(config).await.unwrap();
 
-    workspace.add_knowledge(
-        "src/main.rs",
-        "abc123",
-        None,
-        Some(serde_json::json!({"language": "rust"}))
-    ).await.unwrap();
+    workspace
+        .add_knowledge(
+            "src/main.rs",
+            "abc123",
+            None,
+            Some(serde_json::json!({"language": "rust"})),
+        )
+        .await
+        .unwrap();
 
     let knowledge = workspace.search_knowledge("main.rs").await.unwrap();
     assert_eq!(knowledge.len(), 1);

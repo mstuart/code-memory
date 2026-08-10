@@ -31,9 +31,9 @@ impl SemanticSearch {
     pub fn new() -> Result<Self> {
         info!("Initializing fastembed model (all-MiniLM-L6-v2)...");
         let model = TextEmbedding::try_new(
-            InitOptions::new(EmbeddingModel::AllMiniLML6V2)
-                .with_show_download_progress(true),
-        ).context("Failed to initialize embedding model")?;
+            InitOptions::new(EmbeddingModel::AllMiniLML6V2).with_show_download_progress(true),
+        )
+        .context("Failed to initialize embedding model")?;
 
         info!("Embedding model loaded successfully");
         Ok(Self {
@@ -43,7 +43,10 @@ impl SemanticSearch {
     }
 
     /// Generate embeddings for a list of code entries and add them to the store
-    pub fn index_entries(&mut self, entries: Vec<(String, String, String, String)>) -> Result<usize> {
+    pub fn index_entries(
+        &mut self,
+        entries: Vec<(String, String, String, String)>,
+    ) -> Result<usize> {
         if entries.is_empty() {
             return Ok(0);
         }
@@ -64,7 +67,9 @@ impl SemanticSearch {
 
         for chunk in texts.chunks(batch_size) {
             let chunk_refs: Vec<&str> = chunk.iter().map(|s| s.as_str()).collect();
-            let embeddings = self.model.embed(chunk_refs, None)
+            let embeddings = self
+                .model
+                .embed(chunk_refs, None)
                 .context("Failed to generate embeddings")?;
             all_embeddings.extend(embeddings);
         }
@@ -92,12 +97,15 @@ impl SemanticSearch {
 
         // Generate query embedding
         let query_text = format!("query: {}", query);
-        let query_embeddings = self.model.embed(vec![query_text.as_str()], None)
+        let query_embeddings = self
+            .model
+            .embed(vec![query_text.as_str()], None)
             .context("Failed to embed query")?;
         let query_embedding = &query_embeddings[0];
 
         // Compute cosine similarity with all entries
-        let mut scored: Vec<(usize, f32)> = self.entries
+        let mut scored: Vec<(usize, f32)> = self
+            .entries
             .iter()
             .enumerate()
             .map(|(i, entry)| {
@@ -188,9 +196,25 @@ mod tests {
         let mut search = SemanticSearch::new().unwrap();
 
         let entries = vec![
-            ("src/auth.rs".to_string(), "authenticate_user verify_token".to_string(), "rust".to_string(), "pub fn authenticate_user(username: &str, password: &str) -> bool { true }".to_string()),
-            ("src/db.rs".to_string(), "connect_database query_users".to_string(), "rust".to_string(), "pub fn connect_database(url: &str) -> Result<Pool> { Ok(pool) }".to_string()),
-            ("src/api.rs".to_string(), "handle_request parse_json".to_string(), "rust".to_string(), "pub fn handle_request(req: Request) -> Response { todo!() }".to_string()),
+            (
+                "src/auth.rs".to_string(),
+                "authenticate_user verify_token".to_string(),
+                "rust".to_string(),
+                "pub fn authenticate_user(username: &str, password: &str) -> bool { true }"
+                    .to_string(),
+            ),
+            (
+                "src/db.rs".to_string(),
+                "connect_database query_users".to_string(),
+                "rust".to_string(),
+                "pub fn connect_database(url: &str) -> Result<Pool> { Ok(pool) }".to_string(),
+            ),
+            (
+                "src/api.rs".to_string(),
+                "handle_request parse_json".to_string(),
+                "rust".to_string(),
+                "pub fn handle_request(req: Request) -> Response { todo!() }".to_string(),
+            ),
         ];
 
         let count = search.index_entries(entries).unwrap();
@@ -199,6 +223,10 @@ mod tests {
         let results = search.search("user authentication login", 10).unwrap();
         assert!(!results.is_empty());
         // The auth file should rank highest for an auth-related query
-        assert!(results[0].path.contains("auth"), "Expected auth.rs as top result, got: {}", results[0].path);
+        assert!(
+            results[0].path.contains("auth"),
+            "Expected auth.rs as top result, got: {}",
+            results[0].path
+        );
     }
 }

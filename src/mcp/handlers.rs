@@ -13,10 +13,6 @@ use crate::mcp::tools;
 
 /// Execute a tool by name with the given arguments.
 /// This is the main entry point for MCP tool execution.
-pub async fn execute_tool(
-    name: &str,
-    args: Option<Value>,
-    project_root: &Path,
-) -> CallToolResult {
+pub async fn execute_tool(name: &str, args: Option<Value>, project_root: &Path) -> CallToolResult {
     tools::dispatch(name, args, project_root).await
 }

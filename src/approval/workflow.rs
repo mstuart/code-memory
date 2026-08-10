@@ -1,5 +1,5 @@
-use tokio_postgres::{Client, NoTls, Error};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+use tokio_postgres::{Client, Error, NoTls};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PendingKnowledge {
@@ -66,56 +66,66 @@ impl ApprovalWorkflow {
     }
 
     pub async fn approve(&self, id: &str, reviewer_id: &str) -> Result<(), Error> {
-        self.client.execute(
-            "UPDATE pending_knowledge
+        self.client
+            .execute(
+                "UPDATE pending_knowledge
              SET status = 'approved', reviewed_by = $2, reviewed_at = NOW()
              WHERE id = $1",
-            &[&id, &reviewer_id],
-        ).await?;
+                &[&id, &reviewer_id],
+            )
+            .await?;
 
         // Copy to knowledge_base
-        self.client.execute(
-            "INSERT INTO knowledge_base (team_id, file_path, content_hash, user_id)
+        self.client
+            .execute(
+                "INSERT INTO knowledge_base (team_id, file_path, content_hash, user_id)
              SELECT team_id, file_path, content_hash, submitted_by
              FROM pending_knowledge
              WHERE id = $1",
-            &[&id],
-        ).await?;
+                &[&id],
+            )
+            .await?;
 
         Ok(())
     }
 
     pub async fn reject(&self, id: &str, reviewer_id: &str, reason: &str) -> Result<(), Error> {
-        self.client.execute(
-            "UPDATE pending_knowledge
+        self.client
+            .execute(
+                "UPDATE pending_knowledge
              SET status = 'rejected', reviewed_by = $2, reviewed_at = NOW(), rejection_reason = $3
              WHERE id = $1",
-            &[&id, &reviewer_id, &reason],
-        ).await?;
+                &[&id, &reviewer_id, &reason],
+            )
+            .await?;
 
         Ok(())
     }
 
     pub async fn get_status(&self, id: &str) -> Result<ApprovalStatus, Error> {
-        let row = self.client.query_one(
-            "SELECT status FROM pending_knowledge WHERE id = $1",
-            &[&id],
-        ).await?;
+        let row = self
+            .client
+            .query_one("SELECT status FROM pending_knowledge WHERE id = $1", &[&id])
+            .await?;
 
         let status_str: String = row.get(0);
         Ok(ApprovalStatus::from(status_str))
     }
 
     pub async fn list_pending(&self, team_id: &str) -> Result<Vec<PendingKnowledge>, Error> {
-        let rows = self.client.query(
-            "SELECT file_path, content_hash, submitted_by, team_id
+        let rows = self
+            .client
+            .query(
+                "SELECT file_path, content_hash, submitted_by, team_id
              FROM pending_knowledge
              WHERE team_id = $1 AND status = 'pending'
              ORDER BY created_at DESC",
-            &[&team_id],
-        ).await?;
+                &[&team_id],
+            )
+            .await?;
 
-        let pending = rows.iter()
+        let pending = rows
+            .iter()
             .map(|row| PendingKnowledge {
                 file_path: row.get(0),
                 content_hash: row.get(1),

@@ -63,12 +63,14 @@ impl DecisionExtractor {
                 confidence: 0.85,
             },
             DecisionPattern {
-                regex: Regex::new(r"(?i)(?:decided|choosing|opted)\s+(?:to\s+)?(.+?)(?:\.|$|\n)").unwrap(),
+                regex: Regex::new(r"(?i)(?:decided|choosing|opted)\s+(?:to\s+)?(.+?)(?:\.|$|\n)")
+                    .unwrap(),
                 decision_type: DecisionType::Explicit,
                 confidence: 0.7,
             },
             DecisionPattern {
-                regex: Regex::new(r"(?i)(?:refactor|restructure|reorganize)\s+(.+?)(?:\.|$|\n)").unwrap(),
+                regex: Regex::new(r"(?i)(?:refactor|restructure|reorganize)\s+(.+?)(?:\.|$|\n)")
+                    .unwrap(),
                 decision_type: DecisionType::Refactor,
                 confidence: 0.6,
             },
@@ -133,10 +135,7 @@ impl DecisionExtractor {
 
     /// Extract decisions from multiple commits and rank by confidence.
     pub fn extract_ranked(&self, commits: &[CommitInfo]) -> Vec<Decision> {
-        let mut all: Vec<Decision> = commits
-            .iter()
-            .flat_map(|c| self.extract(c))
-            .collect();
+        let mut all: Vec<Decision> = commits.iter().flat_map(|c| self.extract(c)).collect();
 
         all.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap());
         all
@@ -182,9 +181,12 @@ mod tests {
     #[test]
     fn test_rationale() {
         let extractor = DecisionExtractor::new();
-        let commit = make_commit("refactored auth module\n\nrationale: reduce coupling between services");
+        let commit =
+            make_commit("refactored auth module\n\nrationale: reduce coupling between services");
         let decisions = extractor.extract(&commit);
-        let rationale = decisions.iter().find(|d| d.decision_type == DecisionType::Rationale);
+        let rationale = decisions
+            .iter()
+            .find(|d| d.decision_type == DecisionType::Rationale);
         assert!(rationale.is_some());
     }
 
@@ -193,7 +195,9 @@ mod tests {
         let extractor = DecisionExtractor::new();
         let commit = make_commit("BREAKING CHANGE: remove deprecated API endpoints");
         let decisions = extractor.extract(&commit);
-        let breaking = decisions.iter().find(|d| d.decision_type == DecisionType::Breaking);
+        let breaking = decisions
+            .iter()
+            .find(|d| d.decision_type == DecisionType::Breaking);
         assert!(breaking.is_some());
     }
 

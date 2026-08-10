@@ -40,7 +40,10 @@ impl ImportParser {
             rust_use: Regex::new(r"^\s*use\s+((?:crate|super|self)::[\w:]+|[\w:]+)").unwrap(),
             rust_mod: Regex::new(r"^\s*(?:pub\s+)?mod\s+(\w+)\s*;").unwrap(),
             ts_import: Regex::new(r#"^\s*import\s+.*?from\s+['"]([^'"]+)['"]"#).unwrap(),
-            js_require: Regex::new(r#"(?:const|let|var)\s+.*?=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap(),
+            js_require: Regex::new(
+                r#"(?:const|let|var)\s+.*?=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\)"#,
+            )
+            .unwrap(),
             python_import: Regex::new(r"^\s*import\s+([\w.]+)").unwrap(),
             python_from: Regex::new(r"^\s*from\s+([\w.]+)\s+import").unwrap(),
             go_import: Regex::new(r#"^\s*"([^"]+)""#).unwrap(),
@@ -69,7 +72,9 @@ impl ImportParser {
         for (line_num, line) in content.lines().enumerate() {
             if let Some(cap) = self.rust_use.captures(line) {
                 let path = cap[1].to_string();
-                let is_relative = path.starts_with("crate::") || path.starts_with("super::") || path.starts_with("self::");
+                let is_relative = path.starts_with("crate::")
+                    || path.starts_with("super::")
+                    || path.starts_with("self::");
                 imports.push(ImportInfo {
                     source_file: file_path.to_string(),
                     imported_path: path,
@@ -202,7 +207,8 @@ mod tests {
     #[test]
     fn test_parse_rust_use() {
         let parser = ImportParser::new();
-        let content = "use crate::git::history;\nuse super::decisions;\nuse std::collections::HashMap;\n";
+        let content =
+            "use crate::git::history;\nuse super::decisions;\nuse std::collections::HashMap;\n";
         let imports = parser.parse("src/main.rs", content);
         assert_eq!(imports.len(), 3);
         assert!(imports[0].is_relative);
@@ -233,7 +239,8 @@ mod tests {
     #[test]
     fn test_parse_javascript_require() {
         let parser = ImportParser::new();
-        let content = "const express = require('express');\nconst handler = require('./handler');\n";
+        let content =
+            "const express = require('express');\nconst handler = require('./handler');\n";
         let imports = parser.parse("src/index.js", content);
         assert_eq!(imports.len(), 2);
         assert!(!imports[0].is_relative);

@@ -7,6 +7,21 @@ on:
     branches: [main]
 
 jobs:
+  ultracite:
+    name: Ultracite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install Node.js dependencies
+        working-directory: npm
+        run: npm install --ignore-scripts
+      - name: Ultracite check
+        working-directory: npm
+        run: npm run check
+
   check:
     runs-on: ubuntu-latest
     steps:
@@ -37,4 +52,4 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - run: cargo fmt --check
+      - run: cargo fmt --package code-memory -- --check

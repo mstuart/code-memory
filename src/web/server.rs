@@ -1,9 +1,8 @@
-use tiny_http::{Server, Response, Request};
 use std::io::ErrorKind;
+use tiny_http::{Request, Response, Server};
 
 pub fn start_server(addr: &str) -> std::io::Result<()> {
-    let server = Server::http(addr)
-        .map_err(|e| std::io::Error::new(ErrorKind::Other, e))?;
+    let server = Server::http(addr).map_err(|e| std::io::Error::new(ErrorKind::Other, e))?;
 
     println!("Web UI running at http://{}", addr);
     println!("Press Ctrl+C to stop");
@@ -30,8 +29,9 @@ fn handle_request(request: Request) {
 
 fn handle_index(request: Request) {
     let html = crate::web::templates::index_page();
-    let response = Response::from_string(html)
-        .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap());
+    let response = Response::from_string(html).with_header(
+        tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap(),
+    );
     let _ = request.respond(response);
 }
 
@@ -41,7 +41,8 @@ fn handle_search(request: Request) {
     let query = url.split('=').nth(1).unwrap_or("");
 
     let html = crate::web::templates::search_results(query);
-    let response = Response::from_string(html)
-        .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap());
+    let response = Response::from_string(html).with_header(
+        tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap(),
+    );
     let _ = request.respond(response);
 }

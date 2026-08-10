@@ -1,7 +1,7 @@
+use crate::license::verify::LicenseStatus;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use serde::{Serialize, Deserialize};
-use crate::license::verify::LicenseStatus;
 
 #[derive(Serialize, Deserialize)]
 struct CachedLicense {
@@ -49,9 +49,10 @@ pub fn save_cached_license(key: &str, status: &LicenseStatus) {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     let (tier, expires_at, features) = match status {
-        LicenseStatus::Pro { expires_at, features } => {
-            ("pro", Some(*expires_at), Some(features.clone()))
-        }
+        LicenseStatus::Pro {
+            expires_at,
+            features,
+        } => ("pro", Some(*expires_at), Some(features.clone())),
         LicenseStatus::Free => ("free", None, None),
     };
 

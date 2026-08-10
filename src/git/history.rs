@@ -1,9 +1,9 @@
-use git2::{Repository, Sort, Oid};
+use git2::{Oid, Repository, Sort};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
-use super::decisions::{DecisionExtractor, Decision};
+use super::decisions::{Decision, DecisionExtractor};
 
 /// Information about a single commit.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -94,11 +94,9 @@ impl GitHistory {
         if commit.parent_count() > 0 {
             let parent = commit.parent(0)?;
             let parent_tree = parent.tree()?;
-            let diff = self.repo.diff_tree_to_tree(
-                Some(&parent_tree),
-                Some(&tree),
-                None,
-            )?;
+            let diff = self
+                .repo
+                .diff_tree_to_tree(Some(&parent_tree), Some(&tree), None)?;
             let stats = diff.stats()?;
             insertions = stats.insertions();
             deletions = stats.deletions();
@@ -146,7 +144,11 @@ impl GitHistory {
     }
 
     /// Get the full history of a specific file.
-    pub fn file_history(&self, file_path: &str, max_commits: usize) -> Result<FileHistory, git2::Error> {
+    pub fn file_history(
+        &self,
+        file_path: &str,
+        max_commits: usize,
+    ) -> Result<FileHistory, git2::Error> {
         let mut revwalk = self.repo.revwalk()?;
         revwalk.push_head()?;
         revwalk.set_sorting(Sort::TIME)?;
@@ -184,7 +186,10 @@ impl GitHistory {
     }
 
     /// Extract all decisions from the repository's commit history.
-    pub fn extract_all_decisions(&self, max_commits: usize) -> Result<DecisionTimeline, git2::Error> {
+    pub fn extract_all_decisions(
+        &self,
+        max_commits: usize,
+    ) -> Result<DecisionTimeline, git2::Error> {
         let commits = self.walk_commits(max_commits)?;
         let mut all_decisions = Vec::new();
         let mut files_affected = Vec::new();
@@ -208,7 +213,10 @@ impl GitHistory {
     }
 
     /// Get a map of file paths to their change frequency.
-    pub fn file_change_frequency(&self, max_commits: usize) -> Result<HashMap<String, usize>, git2::Error> {
+    pub fn file_change_frequency(
+        &self,
+        max_commits: usize,
+    ) -> Result<HashMap<String, usize>, git2::Error> {
         let commits = self.walk_commits(max_commits)?;
         let mut freq: HashMap<String, usize> = HashMap::new();
 
@@ -255,7 +263,10 @@ impl GitHistory {
     }
 
     /// Get PR references from commit messages.
-    pub fn extract_pr_references(&self, max_commits: usize) -> Result<Vec<(String, Vec<String>)>, git2::Error> {
+    pub fn extract_pr_references(
+        &self,
+        max_commits: usize,
+    ) -> Result<Vec<(String, Vec<String>)>, git2::Error> {
         let commits = self.walk_commits(max_commits)?;
         let pr_pattern = regex::Regex::new(r"#(\d+)|(?:pull request|PR)\s*#?(\d+)").unwrap();
 
@@ -282,25 +293,61 @@ impl GitHistory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
     use std::process::Command;
     use tempfile::TempDir;
-    use std::path::PathBuf;
 
     fn setup_test_repo() -> (TempDir, PathBuf) {
         let dir = TempDir::new().unwrap();
         let path = dir.path().to_path_buf();
 
-        Command::new("git").args(["init"]).current_dir(&path).output().unwrap();
-        Command::new("git").args(["config", "user.email", "test@test.com"]).current_dir(&path).output().unwrap();
-        Command::new("git").args(["config", "user.name", "Test"]).current_dir(&path).output().unwrap();
+        Command::new("git")
+            .args(["init"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.email", "test@test.com"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "Test"])
+            .current_dir(&path)
+            .output()
+            .unwrap();
 
         std::fs::write(path.join("test.rs"), "fn main() {}").unwrap();
-        Command::new("git").args(["add", "."]).current_dir(&path).output().unwrap();
-        Command::new("git").args(["commit", "-m", "decision: chose Rust over Go for performance"]).current_dir(&path).output().unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args([
+                "commit",
+                "-m",
+                "decision: chose Rust over Go for performance",
+            ])
+            .current_dir(&path)
+            .output()
+            .unwrap();
 
         std::fs::write(path.join("lib.rs"), "pub fn hello() {}").unwrap();
-        Command::new("git").args(["add", "."]).current_dir(&path).output().unwrap();
-        Command::new("git").args(["commit", "-m", "Add library module\n\nrationale: separate concerns"]).current_dir(&path).output().unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&path)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args([
+                "commit",
+                "-m",
+                "Add library module\n\nrationale: separate concerns",
+            ])
+            .current_dir(&path)
+            .output()
+            .unwrap();
 
         (dir, path)
     }

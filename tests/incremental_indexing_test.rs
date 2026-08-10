@@ -24,7 +24,10 @@ fn test_file_change_detection() {
     // First poll: collect events but don't return yet (debounce period not elapsed)
     std::thread::sleep(Duration::from_millis(100));
     let changes = watcher.get_changes();
-    assert!(changes.is_empty(), "Should not return changes during debounce period");
+    assert!(
+        changes.is_empty(),
+        "Should not return changes during debounce period"
+    );
 
     // Second poll: after debounce period, should return changes
     std::thread::sleep(Duration::from_millis(500));
@@ -33,12 +36,15 @@ fn test_file_change_detection() {
     assert!(!changes.is_empty(), "No changes detected");
     // On macOS, paths might be canonicalized (/var -> /private/var)
     let test_file_canonical = test_file.canonicalize().unwrap_or(test_file.clone());
-    let changes_canonical: Vec<_> = changes.iter()
+    let changes_canonical: Vec<_> = changes
+        .iter()
         .map(|p| p.canonicalize().unwrap_or_else(|_| p.clone()))
         .collect();
     assert!(
         changes_canonical.contains(&test_file_canonical),
-        "Test file {:?} not in changes {:?}", test_file_canonical, changes_canonical
+        "Test file {:?} not in changes {:?}",
+        test_file_canonical,
+        changes_canonical
     );
 
     // Cleanup
@@ -68,7 +74,10 @@ fn test_debouncing() {
 
     // Poll immediately - should collect events but not return (still debouncing)
     let changes = watcher.get_changes();
-    assert!(changes.is_empty(), "Should not return changes during debounce period");
+    assert!(
+        changes.is_empty(),
+        "Should not return changes during debounce period"
+    );
 
     // Wait for debounce period and poll again
     std::thread::sleep(Duration::from_millis(600));
