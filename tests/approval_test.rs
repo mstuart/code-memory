@@ -1,10 +1,14 @@
 use code_memory::approval::workflow::{ApprovalStatus, ApprovalWorkflow, PendingKnowledge};
 
+fn test_database_url() -> String {
+    std::env::var("TEST_DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://localhost/test_db".to_string())
+}
+
 #[tokio::test]
 async fn test_submit_for_approval() {
-    let workflow = ApprovalWorkflow::new("postgresql://localhost/test_db")
-        .await
-        .unwrap();
+    let database_url = test_database_url();
+    let workflow = ApprovalWorkflow::new(&database_url).await.unwrap();
 
     let pending = PendingKnowledge {
         file_path: "src/auth.rs".to_string(),
@@ -19,9 +23,8 @@ async fn test_submit_for_approval() {
 
 #[tokio::test]
 async fn test_approve_knowledge() {
-    let workflow = ApprovalWorkflow::new("postgresql://localhost/test_db")
-        .await
-        .unwrap();
+    let database_url = test_database_url();
+    let workflow = ApprovalWorkflow::new(&database_url).await.unwrap();
 
     let pending = PendingKnowledge {
         file_path: "src/auth.rs".to_string(),
@@ -39,9 +42,8 @@ async fn test_approve_knowledge() {
 
 #[tokio::test]
 async fn test_reject_knowledge() {
-    let workflow = ApprovalWorkflow::new("postgresql://localhost/test_db")
-        .await
-        .unwrap();
+    let database_url = test_database_url();
+    let workflow = ApprovalWorkflow::new(&database_url).await.unwrap();
 
     let pending = PendingKnowledge {
         file_path: "secrets.env".to_string(),

@@ -1,11 +1,16 @@
 use code_memory::workspace::team_workspace::{TeamWorkspace, WorkspaceConfig};
 
+fn test_database_url() -> String {
+    std::env::var("TEST_DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://localhost/test_db".to_string())
+}
+
 #[tokio::test]
 async fn test_create_workspace() {
     let config = WorkspaceConfig {
         team_id: "team_123".to_string(),
         name: "Engineering".to_string(),
-        database_url: "postgresql://localhost/test_db".to_string(),
+        database_url: test_database_url(),
     };
 
     let workspace = TeamWorkspace::new(config).await.unwrap();
@@ -17,7 +22,7 @@ async fn test_add_member() {
     let config = WorkspaceConfig {
         team_id: "team_123".to_string(),
         name: "Engineering".to_string(),
-        database_url: "postgresql://localhost/test_db".to_string(),
+        database_url: test_database_url(),
     };
 
     let workspace = TeamWorkspace::new(config).await.unwrap();
@@ -33,7 +38,7 @@ async fn test_shared_knowledge() {
     let config = WorkspaceConfig {
         team_id: "team_123".to_string(),
         name: "Engineering".to_string(),
-        database_url: "postgresql://localhost/test_db".to_string(),
+        database_url: test_database_url(),
     };
 
     let workspace = TeamWorkspace::new(config).await.unwrap();
