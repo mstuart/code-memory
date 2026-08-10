@@ -385,8 +385,7 @@ fn test_call_tool_result_text_serialization() {
 
 #[test]
 fn test_call_tool_result_error_serialization() {
-    let result =
-        code_memory::mcp::protocol::CallToolResult::error("something broke".to_string());
+    let result = code_memory::mcp::protocol::CallToolResult::error("something broke".to_string());
     let json = serde_json::to_value(&result).unwrap();
     assert_eq!(json["content"][0]["type"], "text");
     assert_eq!(json["content"][0]["text"], "something broke");
@@ -395,10 +394,8 @@ fn test_call_tool_result_error_serialization() {
 
 #[test]
 fn test_jsonrpc_response_success() {
-    let resp = code_memory::mcp::protocol::JsonRpcResponse::success(
-        Some(json!(1)),
-        json!({"ok": true}),
-    );
+    let resp =
+        code_memory::mcp::protocol::JsonRpcResponse::success(Some(json!(1)), json!({"ok": true}));
     let json = serde_json::to_value(&resp).unwrap();
     assert_eq!(json["jsonrpc"], "2.0");
     assert_eq!(json["id"], 1);

@@ -1,5 +1,5 @@
 use crate::git::decision_parser::Decision;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub struct DriftAlert {
@@ -19,6 +19,12 @@ pub enum Severity {
 pub struct DriftDetector {
     decisions: Vec<Decision>,
     alerts: Vec<DriftAlert>,
+}
+
+impl Default for DriftDetector {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl DriftDetector {
