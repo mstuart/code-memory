@@ -9,6 +9,12 @@ pub struct DecisionGraph {
     // - Reversal detection
 }
 
+impl Default for DecisionGraph {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DecisionGraph {
     pub fn new() -> Self {
         Self {}

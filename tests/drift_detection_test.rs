@@ -1,4 +1,4 @@
-use code_memory::drift::detector::{DriftAlert, DriftDetector};
+use code_memory::drift::detector::DriftDetector;
 use code_memory::git::decision_parser::Decision;
 use std::path::PathBuf;
 

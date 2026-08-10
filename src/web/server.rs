@@ -1,8 +1,7 @@
-use std::io::ErrorKind;
 use tiny_http::{Request, Response, Server};
 
 pub fn start_server(addr: &str) -> std::io::Result<()> {
-    let server = Server::http(addr).map_err(|e| std::io::Error::new(ErrorKind::Other, e))?;
+    let server = Server::http(addr).map_err(std::io::Error::other)?;
 
     println!("Web UI running at http://{}", addr);
     println!("Press Ctrl+C to stop");

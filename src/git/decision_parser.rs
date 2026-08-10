@@ -15,9 +15,15 @@ pub struct DecisionParser {
     decision_keywords: Vec<Regex>,
 }
 
+impl Default for DecisionParser {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DecisionParser {
     pub fn new() -> Self {
-        let keywords = vec![
+        let keywords = [
             r"decided to",
             r"chose",
             r"migrat(?:ed|ing) from",
