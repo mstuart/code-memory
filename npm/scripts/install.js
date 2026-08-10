@@ -1,12 +1,11 @@
 #!/usr/bin/env node
-"use strict";
 
-const https = require("https");
-const http = require("http");
-const fs = require("fs");
-const path = require("path");
-const os = require("os");
-const { execSync } = require("child_process");
+const { execSync } = require("node:child_process");
+const fs = require("node:fs");
+const http = require("node:http");
+const https = require("node:https");
+const os = require("node:os");
+const path = require("node:path");
 
 const PACKAGE = require("../package.json");
 const VERSION = PACKAGE.version;
@@ -18,10 +17,10 @@ function getPlatformTarget() {
   const arch = os.arch();
 
   const targets = {
-    "darwin-x64": "x86_64-apple-darwin",
     "darwin-arm64": "aarch64-apple-darwin",
-    "linux-x64": "x86_64-unknown-linux-gnu",
+    "darwin-x64": "x86_64-apple-darwin",
     "linux-arm64": "aarch64-unknown-linux-gnu",
+    "linux-x64": "x86_64-unknown-linux-gnu",
     "win32-x64": "x86_64-pc-windows-msvc",
   };
 
@@ -34,11 +33,10 @@ function getPlatformTarget() {
     process.exit(1);
   }
 
-  return { target, platform, arch };
+  return { arch, platform, target };
 }
 
 function getDownloadUrl(target) {
-  const ext = target.includes("windows") ? ".exe" : "";
   const archive = target.includes("windows") ? "zip" : "tar.gz";
   return `https://github.com/${REPO}/releases/download/v${VERSION}/${BINARY_NAME}-v${VERSION}-${target}.${archive}`;
 }
@@ -46,7 +44,11 @@ function getDownloadUrl(target) {
 function download(url) {
   return new Promise((resolve, reject) => {
     const handler = (response) => {
-      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+      if (
+        response.statusCode >= 300 &&
+        response.statusCode < 400 &&
+        response.headers.location
+      ) {
         const redirectUrl = response.headers.location;
         const client = redirectUrl.startsWith("https") ? https : http;
         client.get(redirectUrl, handler).on("error", reject);
@@ -54,7 +56,11 @@ function download(url) {
       }
 
       if (response.statusCode !== 200) {
-        reject(new Error(`Download failed with status ${response.statusCode}: ${url}`));
+        reject(
+          new Error(
+            `Download failed with status ${response.statusCode}: ${url}`
+          )
+        );
         return;
       }
 
@@ -68,32 +74,46 @@ function download(url) {
   });
 }
 
-async function extractTarGz(buffer, destDir) {
+function extractTarGz(buffer, destDir) {
   const tmpFile = path.join(os.tmpdir(), `code-memory-${Date.now()}.tar.gz`);
   fs.writeFileSync(tmpFile, buffer);
 
   try {
     execSync(`tar xzf "${tmpFile}" -C "${destDir}"`, { stdio: "pipe" });
   } finally {
-    try { fs.unlinkSync(tmpFile); } catch (_) {}
+    try {
+      fs.unlinkSync(tmpFile);
+    } catch {
+      // The temporary archive may already have been removed.
+    }
   }
 }
 
-async function extractZip(buffer, destDir) {
+function extractZip(buffer, destDir) {
   const tmpFile = path.join(os.tmpdir(), `code-memory-${Date.now()}.zip`);
   fs.writeFileSync(tmpFile, buffer);
 
   try {
     execSync(`unzip -o "${tmpFile}" -d "${destDir}"`, { stdio: "pipe" });
   } finally {
-    try { fs.unlinkSync(tmpFile); } catch (_) {}
+    try {
+      fs.unlinkSync(tmpFile);
+    } catch {
+      // The temporary archive may already have been removed.
+    }
   }
 }
 
 async function install() {
   const { target, platform } = getPlatformTarget();
-  const binDir = path.join(__dirname, "..", "bin");
-  const binPath = path.join(binDir, platform === "win32" ? `${BINARY_NAME}.exe` : BINARY_NAME);
+  const binDir = path.join(
+    path.dirname(require.resolve("../package.json")),
+    "bin"
+  );
+  const binPath = path.join(
+    binDir,
+    platform === "win32" ? `${BINARY_NAME}.exe` : BINARY_NAME
+  );
 
   // Check if binary already exists
   if (fs.existsSync(binPath)) {
@@ -113,9 +133,9 @@ async function install() {
     fs.mkdirSync(binDir, { recursive: true });
 
     if (target.includes("windows")) {
-      await extractZip(data, binDir);
+      extractZip(data, binDir);
     } else {
-      await extractTarGz(data, binDir);
+      extractTarGz(data, binDir);
     }
 
     // Make executable
@@ -132,9 +152,10 @@ async function install() {
     console.warn(`  https://github.com/${REPO}/releases`);
 
     // Create a stub script that tells the user to install manually
-    const stub = platform === "win32"
-      ? `@echo off\necho code-memory binary not installed. Run: cargo install --path . in the code-memory repo\nexit /b 1\n`
-      : `#!/bin/sh\necho "code-memory binary not installed. Run: cargo install --path . in the code-memory repo"\nexit 1\n`;
+    const stub =
+      platform === "win32"
+        ? "@echo off\necho code-memory binary not installed. Run: cargo install --path . in the code-memory repo\nexit /b 1\n"
+        : `#!/bin/sh\necho "code-memory binary not installed. Run: cargo install --path . in the code-memory repo"\nexit 1\n`;
 
     fs.mkdirSync(binDir, { recursive: true });
     fs.writeFileSync(binPath, stub);

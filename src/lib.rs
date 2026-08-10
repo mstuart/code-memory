@@ -1,8 +1,13 @@
+pub mod approval;
 pub mod cli;
+pub mod drift;
 pub mod git;
 pub mod graph;
 pub mod indexer;
+pub mod license;
 pub mod mcp;
 pub mod query;
 pub mod search;
 pub mod sessions;
+pub mod web;
+pub mod workspace;

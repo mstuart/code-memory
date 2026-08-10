@@ -102,4 +102,11 @@ pub enum Command {
         #[arg(short, long, default_value = "text")]
         format: String,
     },
+
+    /// Start web UI server (Pro-only feature)
+    Web {
+        /// Port to listen on
+        #[arg(short, long, default_value = "8080")]
+        port: u16,
+    },
 }
