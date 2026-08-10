@@ -2,12 +2,6 @@
   "name": "code-memory",
   "version": "0.1.1",
   "description": "Persistent memory for AI coding — semantic search, git history analysis, and intelligent context preservation",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/mstuart/code-memory"
-  },
-  "homepage": "https://github.com/mstuart/code-memory#readme",
   "keywords": [
     "ai-memory",
     "code-memory",
@@ -18,11 +12,14 @@
     "ai-coding",
     "developer-tools"
   ],
+  "homepage": "https://github.com/mstuart/code-memory#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mstuart/code-memory"
+  },
+  "license": "MIT",
   "bin": {
     "code-memory": "bin/code-memory"
-  },
-  "scripts": {
-    "postinstall": "node scripts/install.js"
   },
   "files": [
     "bin/",
@@ -30,6 +27,15 @@
     "README.md",
     "LICENSE"
   ],
+  "scripts": {
+    "check": "ultracite check",
+    "fix": "ultracite fix",
+    "postinstall": "node scripts/install.js"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.6",
+    "ultracite": "7.10.2"
+  },
   "engines": {
     "node": ">=16"
   },
