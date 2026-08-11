@@ -83,3 +83,18 @@ jobs:
       - name: Ultracite check
         working-directory: npm
         run: npm run check
+  npm-package-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: cargo build --release
+      - run: |
+          cp target/release/code-memory npm/bin/code-memory-bin
+          chmod +x npm/bin/code-memory-bin
+          cd npm
+          npm pack --dry-run
+          node bin/code-memory --version

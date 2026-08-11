@@ -1,11 +1,11 @@
 [package]
 name = "code-memory"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Persistent memory for AI coding - semantic search, git history, and intelligent context preservation"
 license = "MIT"
 repository = "https://github.com/mstuart/code-memory"
-keywords = ["ai-memory", "code-context", "mcp-server", "semantic-search", "git-history"]
+keywords = ["ai-memory", "code-memory", "mcp-server", "semantic-search", "git-history"]
 categories = ["development-tools", "command-line-utilities"]
 
 [dependencies]

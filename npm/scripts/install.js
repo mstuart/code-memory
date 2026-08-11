@@ -110,9 +110,12 @@ async function install() {
     path.dirname(require.resolve("../package.json")),
     "bin"
   );
+  const extractedName =
+    platform === "win32" ? `${BINARY_NAME}.exe` : BINARY_NAME;
+  const extractedPath = path.join(binDir, extractedName);
   const binPath = path.join(
     binDir,
-    platform === "win32" ? `${BINARY_NAME}.exe` : BINARY_NAME
+    platform === "win32" ? `${BINARY_NAME}-bin.exe` : `${BINARY_NAME}-bin`
   );
 
   // Check if binary already exists
@@ -138,7 +141,14 @@ async function install() {
       extractTarGz(data, binDir);
     }
 
-    // Make executable
+    if (!fs.existsSync(extractedPath)) {
+      throw new Error(`archive did not contain ${extractedName}`);
+    }
+
+    if (extractedPath !== binPath) {
+      fs.renameSync(extractedPath, binPath);
+    }
+
     if (platform !== "win32") {
       fs.chmodSync(binPath, 0o755);
     }
@@ -146,22 +156,13 @@ async function install() {
     console.log(`  Installed to ${binPath}`);
   } catch (error) {
     console.warn(`\nFailed to download pre-built binary: ${error.message}`);
-    console.warn("\nYou can build from source instead:");
-    console.warn("  cargo install --path .");
+    console.warn("\nTry reinstalling: npm install -g code-memory");
+    console.warn("\nOr build from source instead:");
+    console.warn(
+      "  cargo install --git https://github.com/mstuart/code-memory code-memory"
+    );
     console.warn("\nOr download manually from:");
     console.warn(`  https://github.com/${REPO}/releases`);
-
-    // Create a stub script that tells the user to install manually
-    const stub =
-      platform === "win32"
-        ? "@echo off\necho code-memory binary not installed. Run: cargo install --path . in the code-memory repo\nexit /b 1\n"
-        : `#!/bin/sh\necho "code-memory binary not installed. Run: cargo install --path . in the code-memory repo"\nexit 1\n`;
-
-    fs.mkdirSync(binDir, { recursive: true });
-    fs.writeFileSync(binPath, stub);
-    if (platform !== "win32") {
-      fs.chmodSync(binPath, 0o755);
-    }
   }
 }
 

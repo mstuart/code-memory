@@ -3,10 +3,10 @@ use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(
-    name = "claude-context",
+    name = "code-memory",
     version,
     about = "Intelligent code context for Claude — full-text search, semantic search, git history, and dependency analysis",
-    long_about = "claude-context is an MCP server that gives Claude deep understanding of your codebase.\n\n\
+    long_about = "code-memory is an MCP server that gives Claude deep understanding of your codebase.\n\n\
                   It indexes your code, extracts symbols, analyzes git history, and builds dependency\n\
                   graphs so Claude can search, explain, trace decisions, and find related code."
 )]
@@ -24,7 +24,7 @@ pub enum Command {
         root: PathBuf,
     },
 
-    /// Initialize claude-context in a project directory
+    /// Initialize code-memory in a project directory
     Init {
         /// Directory to initialize (default: current directory)
         #[arg(default_value = ".")]
@@ -70,7 +70,7 @@ pub enum Command {
     /// Export knowledge base
     Export {
         /// Output file path
-        #[arg(short, long, default_value = "claude-context-export.json")]
+        #[arg(short, long, default_value = "code-memory-export.json")]
         output: PathBuf,
 
         /// Project root directory
