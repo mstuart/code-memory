@@ -23,7 +23,7 @@ impl McpServer {
     /// Run the MCP server reading JSON-RPC from stdin, writing to stdout.
     pub async fn run(&self) -> Result<()> {
         info!(
-            "claude-context MCP server starting (root: {:?})",
+            "code-memory MCP server starting (root: {:?})",
             self.project_root
         );
 
@@ -55,7 +55,7 @@ impl McpServer {
             }
         }
 
-        info!("claude-context MCP server shutting down");
+        info!("code-memory MCP server shutting down");
         Ok(())
     }
 
@@ -108,7 +108,7 @@ impl McpServer {
                 },
             },
             server_info: ServerInfo {
-                name: "claude-context".to_string(),
+                name: "code-memory".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_string(),
             },
         };

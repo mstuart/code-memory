@@ -144,11 +144,20 @@ pub fn index_project(project_path: &Path, code_index: &CodeIndex) -> Result<Inde
 /// Get the storage path for a project's index
 pub fn index_storage_path(project_path: &Path) -> PathBuf {
     let home = dirs::home_dir().expect("cannot determine home directory");
-    let context_dir = home.join(".code-memory").join("index");
+    let current_dir = home.join(".code-memory").join("index");
+    let legacy_dir = home.join(".claude-context").join("index");
 
-    // Use a hash of the project path as the directory name to avoid conflicts
+    // Use a hash of the project path as the directory name to avoid conflicts.
     let project_hash = simple_hash(&project_path.to_string_lossy());
-    context_dir.join(format!("{:016x}", project_hash))
+    let leaf = format!("{:016x}", project_hash);
+    let current_path = current_dir.join(&leaf);
+    let legacy_path = legacy_dir.join(&leaf);
+
+    if current_path.exists() || !legacy_path.exists() {
+        current_path
+    } else {
+        legacy_path
+    }
 }
 
 fn simple_hash(s: &str) -> u64 {
@@ -198,7 +207,10 @@ mod tests {
     fn test_index_storage_path() {
         let path = Path::new("/Users/test/myproject");
         let storage = index_storage_path(path);
-        assert!(storage.to_string_lossy().contains(".code-memory"));
+        assert!(
+            storage.to_string_lossy().contains(".code-memory")
+                || storage.to_string_lossy().contains(".claude-context")
+        );
         assert!(storage.to_string_lossy().contains("index"));
     }
 }
