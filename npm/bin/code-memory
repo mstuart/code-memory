@@ -1,24 +1,25 @@
-#!/bin/sh
-# Wrapper script for code-memory binary
-# The actual binary is downloaded during npm postinstall
+#!/usr/bin/env node
+"use strict";
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BINARY="$SCRIPT_DIR/code-memory-bin"
+const { spawnSync } = require("child_process");
+const path = require("path");
 
-if [ -f "$BINARY" ]; then
-  exec "$BINARY" "$@"
-fi
+const binary = path.join(
+  __dirname,
+  process.platform === "win32" ? "code-memory-bin.exe" : "code-memory-bin"
+);
 
-# Check for binary with platform-specific name
-case "$(uname -s)" in
-  MINGW*|MSYS*|CYGWIN*) BINARY="$SCRIPT_DIR/code-memory.exe" ;;
-esac
+const result = spawnSync(binary, process.argv.slice(2), { stdio: "inherit" });
 
-if [ -f "$BINARY" ]; then
-  exec "$BINARY" "$@"
-fi
+if (result.error) {
+  console.error("Error: code-memory native binary not found or not executable.");
+  console.error("Try reinstalling: npm install -g code-memory");
+  console.error("Or build from source: cargo install --git https://github.com/mstuart/code-memory code-memory");
+  process.exit(1);
+}
 
-echo "Error: code-memory binary not found."
-echo "Try reinstalling: npm install -g @mstuart/code-memory"
-echo "Or build from source: cargo install --path ."
-exit 1
+if (result.signal) {
+  process.kill(process.pid, result.signal);
+}
+
+process.exit(result.status ?? 1);
