@@ -61,9 +61,24 @@ fn canonicalize_root(root: PathBuf) -> Result<PathBuf> {
     Ok(std::fs::canonicalize(&root).unwrap_or(root))
 }
 
+fn config_dir(root: &std::path::Path) -> PathBuf {
+    let current = root.join(".code-memory");
+    let legacy = root.join(".claude-context");
+
+    if current.exists() || !legacy.exists() {
+        current
+    } else {
+        legacy
+    }
+}
+
+fn writable_config_dir(root: &std::path::Path) -> PathBuf {
+    root.join(".code-memory")
+}
+
 async fn cmd_init(path: PathBuf) -> Result<()> {
     let path = canonicalize_root(path)?;
-    let config_dir = path.join(".code-memory");
+    let config_dir = writable_config_dir(&path);
 
     if config_dir.exists() {
         eprintln!("Already initialized: {}", config_dir.display());
@@ -74,7 +89,7 @@ async fn cmd_init(path: PathBuf) -> Result<()> {
 
     // Write default config
     let config = r#"# code-memory configuration
-# See https://github.com/user/code-memory for documentation
+# See https://github.com/mstuart/code-memory for documentation
 
 [index]
 # Languages to index (empty = all detected)
@@ -176,7 +191,7 @@ async fn cmd_search(
 
 async fn cmd_stats(root: PathBuf) -> Result<()> {
     let root = canonicalize_root(root)?;
-    let config_dir = root.join(".code-memory");
+    let config_dir = config_dir(&root);
     let index_path = code_memory::indexer::walker::index_storage_path(&root);
 
     println!("code-memory v{}", env!("CARGO_PKG_VERSION"));
@@ -224,7 +239,7 @@ async fn cmd_stats(root: PathBuf) -> Result<()> {
 
 async fn cmd_export(root: PathBuf, output: PathBuf) -> Result<()> {
     let root = canonicalize_root(root)?;
-    let knowledge_file = root.join(".code-memory").join("knowledge.json");
+    let knowledge_file = config_dir(&root).join("knowledge.json");
 
     if !knowledge_file.exists() {
         eprintln!("No knowledge entries to export.");
@@ -245,7 +260,7 @@ async fn cmd_export(root: PathBuf, output: PathBuf) -> Result<()> {
 
 async fn cmd_import(root: PathBuf, input: PathBuf) -> Result<()> {
     let root = canonicalize_root(root)?;
-    let config_dir = root.join(".code-memory");
+    let config_dir = config_dir(&root);
     let knowledge_file = config_dir.join("knowledge.json");
 
     if !input.exists() {

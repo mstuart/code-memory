@@ -1,13 +1,15 @@
 use code_memory::approval::workflow::{ApprovalStatus, ApprovalWorkflow, PendingKnowledge};
 
-fn test_database_url() -> String {
-    std::env::var("TEST_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://localhost/test_db".to_string())
+fn test_database_url() -> Option<String> {
+    std::env::var("TEST_DATABASE_URL").ok()
 }
 
 #[tokio::test]
 async fn test_submit_for_approval() {
-    let database_url = test_database_url();
+    let Some(database_url) = test_database_url() else {
+        eprintln!("skipping Postgres integration test: TEST_DATABASE_URL is not set");
+        return;
+    };
     let workflow = ApprovalWorkflow::new(&database_url).await.unwrap();
 
     let pending = PendingKnowledge {
@@ -23,7 +25,10 @@ async fn test_submit_for_approval() {
 
 #[tokio::test]
 async fn test_approve_knowledge() {
-    let database_url = test_database_url();
+    let Some(database_url) = test_database_url() else {
+        eprintln!("skipping Postgres integration test: TEST_DATABASE_URL is not set");
+        return;
+    };
     let workflow = ApprovalWorkflow::new(&database_url).await.unwrap();
 
     let pending = PendingKnowledge {
@@ -42,7 +47,10 @@ async fn test_approve_knowledge() {
 
 #[tokio::test]
 async fn test_reject_knowledge() {
-    let database_url = test_database_url();
+    let Some(database_url) = test_database_url() else {
+        eprintln!("skipping Postgres integration test: TEST_DATABASE_URL is not set");
+        return;
+    };
     let workflow = ApprovalWorkflow::new(&database_url).await.unwrap();
 
     let pending = PendingKnowledge {
