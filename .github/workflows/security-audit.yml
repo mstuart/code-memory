@@ -33,6 +33,7 @@ jobs:
       # Some repos intentionally ship without a committed lockfile; `npm ci`
       # requires one, so fall back to `npm install` in that case.
       - name: Install dependencies
+        working-directory: npm
         run: |
           if [ -f package-lock.json ]; then
             npm ci
@@ -42,6 +43,7 @@ jobs:
 
       - name: Run npm audit
         id: audit
+        working-directory: npm
         run: |
           # npm audit exits non-zero when it finds anything; capture rather than fail.
           npm audit --audit-level=high --json > audit.json || true
