@@ -61,18 +61,17 @@ code-memory search "authentication flow"
 
 ### Configure with Claude Code
 
-Add to your `~/.claude/config.json`:
+From the project where you want Code Memory available, choose a scope:
 
-```json
-{
-  "mcpServers": {
-    "code-memory": {
-      "command": "code-memory",
-      "args": ["serve"]
-    }
-  }
-}
+```bash
+# Share with this project via .mcp.json
+claude mcp add --transport stdio --scope project code-memory -- code-memory serve
+
+# Or make it available to all projects via ~/.claude.json
+claude mcp add --transport stdio --scope user code-memory -- code-memory serve
 ```
+
+Verify the connection with `claude mcp get code-memory`.
 
 ## Features
 
