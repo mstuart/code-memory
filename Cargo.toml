@@ -23,7 +23,7 @@ tantivy = "0.26.1"
 fastembed = "4"
 
 # Git integration
-git2 = "0.20"
+git2 = "0.21"
 
 # Dependency graphs
 petgraph = "0.6"
