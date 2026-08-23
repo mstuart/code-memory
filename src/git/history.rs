@@ -42,6 +42,15 @@ pub struct GitHistory {
     extractor: DecisionExtractor,
 }
 
+fn blame_signature_details(
+    signature: Option<git2::Signature<'_>>,
+) -> Result<(String, i64), git2::Error> {
+    let signature = signature
+        .ok_or_else(|| git2::Error::from_str("blame hunk is missing its final signature"))?;
+    let author = signature.name().unwrap_or("unknown").to_string();
+    Ok((author, signature.when().seconds()))
+}
+
 impl GitHistory {
     /// Open a repository at the given path.
     pub fn open(repo_path: &Path) -> Result<Self, git2::Error> {
@@ -252,10 +261,8 @@ impl GitHistory {
         let mut result = Vec::new();
 
         for hunk in blame.iter() {
-            let sig = hunk.final_signature();
-            let author = sig.name().unwrap_or("unknown").to_string();
+            let (author, timestamp) = blame_signature_details(hunk.final_signature())?;
             let commit_id = hunk.final_commit_id().to_string();
-            let timestamp = sig.when().seconds();
             result.push((author, commit_id, timestamp));
         }
 
@@ -383,5 +390,10 @@ mod tests {
         let git = GitHistory::open(&path).unwrap();
         let freq = git.file_change_frequency(100).unwrap();
         assert_eq!(freq.get("test.rs"), Some(&1));
+    }
+
+    #[test]
+    fn test_missing_blame_signature_returns_error() {
+        assert!(blame_signature_details(None).is_err());
     }
 }
