@@ -52,7 +52,7 @@ impl FullTextSearch {
     pub fn search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>> {
         let query = self.query_parser.parse_query(query)?;
         let searcher = self.reader.searcher();
-        let top_docs = searcher.search(&query, &TopDocs::with_limit(limit))?;
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(limit).order_by_score())?;
 
         let mut results = Vec::with_capacity(top_docs.len());
         for (score, doc_address) in top_docs {
