@@ -23,6 +23,8 @@ pub fn index_page() -> String {
 }
 
 pub fn search_results(query: &str) -> String {
+    let query = escape_html_text(query);
+
     format!(
         r#"<!DOCTYPE html>
 <html>
@@ -44,4 +46,53 @@ pub fn search_results(query: &str) -> String {
 </html>"#,
         query = query
     )
+}
+
+fn escape_html_text(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+
+    for character in value.chars() {
+        match character {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            '"' => escaped.push_str("&quot;"),
+            '\'' => escaped.push_str("&#39;"),
+            _ => escaped.push(character),
+        }
+    }
+
+    escaped
+}
+
+#[cfg(test)]
+mod tests {
+    use super::search_results;
+
+    #[test]
+    fn search_results_escapes_untrusted_query_text() {
+        let escaped = "&lt;/title&gt;&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;&lt;img src=x onerror=alert(1)&gt;";
+        let html =
+            search_results(r#"</title><script>alert('xss')</script><img src=x onerror=alert(1)>"#);
+
+        assert!(!html.contains("<script>"));
+        assert!(!html.contains("<img"));
+        assert!(!html.contains("</title><script>"));
+        assert_eq!(html.matches(escaped).count(), 2);
+    }
+
+    #[test]
+    fn search_results_preserves_plain_text_query() {
+        let html = search_results("memory search — café");
+
+        assert!(html.contains("Search Results: memory search — café"));
+    }
+
+    #[test]
+    fn search_results_does_not_reinterpret_entities_or_encoded_text() {
+        let html = search_results("&lt;script&gt; %3Cscript%3E");
+
+        assert!(html.contains("&amp;lt;script&amp;gt; %3Cscript%3E"));
+        assert!(!html.contains("<script>"));
+    }
 }
