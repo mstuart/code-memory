@@ -35,13 +35,45 @@ fn handle_index(request: Request) {
 }
 
 fn handle_search(request: Request) {
-    // Parse query parameter
-    let url = request.url();
-    let query = url.split('=').nth(1).unwrap_or("");
+    let query = search_query(request.url());
 
-    let html = crate::web::templates::search_results(query);
+    let html = crate::web::templates::search_results(&query);
     let response = Response::from_string(html).with_header(
         tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap(),
     );
     let _ = request.respond(response);
+}
+
+fn search_query(url: &str) -> String {
+    let Some((_, query_string)) = url.split_once('?') else {
+        return String::new();
+    };
+
+    form_urlencoded::parse(query_string.as_bytes())
+        .find_map(|(name, value)| (name == "q").then(|| value.into_owned()))
+        .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::search_query;
+
+    #[test]
+    fn decodes_form_encoded_search_query() {
+        assert_eq!(
+            search_query("/search?q=memory+search+%E2%80%94+caf%C3%A9"),
+            "memory search — café"
+        );
+    }
+
+    #[test]
+    fn selects_q_regardless_of_parameter_order() {
+        assert_eq!(search_query("/search?scope=all&q=needle&page=2"), "needle");
+    }
+
+    #[test]
+    fn returns_empty_query_when_q_is_missing() {
+        assert_eq!(search_query("/search?scope=all"), "");
+        assert_eq!(search_query("/search"), "");
+    }
 }
