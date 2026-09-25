@@ -23,6 +23,11 @@ pub fn index_project(project_path: &Path, code_index: &CodeIndex) -> Result<Inde
     let mut writer = code_index.writer()?;
     let schema = code_index.schema();
 
+    // This function performs a full project scan, so rebuild the visible document set from
+    // scratch. Updating only the paths we encounter leaves deleted or newly ignored files in the
+    // index forever, causing searches to return stale source code.
+    writer.delete_all_documents()?;
+
     let mut files_indexed = 0usize;
     let mut files_skipped = 0usize;
     let mut symbols_found = 0usize;
@@ -201,6 +206,31 @@ mod tests {
 
         assert!(stats.files_indexed >= 3); // 3 code files + possibly config files
         assert!(stats.symbols_found >= 5); // main, App, helper, Color, hello, World
+    }
+
+    #[test]
+    fn test_reindex_removes_deleted_files() {
+        let dir = TempDir::new().unwrap();
+        let project_dir = dir.path().join("project");
+        fs::create_dir(&project_dir).unwrap();
+        let retained = project_dir.join("retained.rs");
+        let removed = project_dir.join("removed.rs");
+        fs::write(&retained, "pub fn retained_symbol() {}\n").unwrap();
+        fs::write(&removed, "pub fn removed_symbol() {}\n").unwrap();
+
+        let index_dir = dir.path().join("index");
+        let code_index = CodeIndex::open_or_create(&index_dir).unwrap();
+        index_project(&project_dir, &code_index).unwrap();
+        assert_eq!(code_index.reader().unwrap().searcher().num_docs(), 2);
+
+        fs::remove_file(removed).unwrap();
+        index_project(&project_dir, &code_index).unwrap();
+
+        assert_eq!(
+            code_index.reader().unwrap().searcher().num_docs(),
+            1,
+            "a full reindex must remove documents for files no longer on disk"
+        );
     }
 
     #[test]
