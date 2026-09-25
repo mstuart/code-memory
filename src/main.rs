@@ -149,7 +149,7 @@ async fn cmd_search(
     root: PathBuf,
     query: &str,
     limit: usize,
-    _language: Option<&str>,
+    language: Option<&str>,
 ) -> Result<()> {
     let root = canonicalize_root(root)?;
 
@@ -165,7 +165,7 @@ async fn cmd_search(
         code_index.schema(),
     )?;
 
-    let results = search.search(query, limit)?;
+    let results = search.search_with_filters(query, limit, None, language)?;
     if results.is_empty() {
         println!("No results found for '{}'", query);
         return Ok(());

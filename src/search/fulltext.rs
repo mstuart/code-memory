@@ -50,11 +50,34 @@ impl FullTextSearch {
 
     /// Search the index with a query string
     pub fn search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>> {
+        self.search_with_filters(query, limit, None, None)
+    }
+
+    /// Search the index while optionally restricting results to a path and language.
+    pub fn search_with_filters(
+        &self,
+        query: &str,
+        limit: usize,
+        path: Option<&str>,
+        language_filter: Option<&str>,
+    ) -> Result<Vec<SearchResult>> {
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+
         let query = self.query_parser.parse_query(query)?;
         let searcher = self.reader.searcher();
-        let top_docs = searcher.search(&query, &TopDocs::with_limit(limit).order_by_score())?;
+        let has_filters = path.is_some() || language_filter.is_some();
+        let fetch_limit = if has_filters {
+            usize::try_from(searcher.num_docs()).unwrap_or(usize::MAX)
+        } else {
+            limit
+        };
+        let top_docs =
+            searcher.search(&query, &TopDocs::with_limit(fetch_limit).order_by_score())?;
+        let normalized_path = path.map(normalize_path_filter);
 
-        let mut results = Vec::with_capacity(top_docs.len());
+        let mut results = Vec::with_capacity(top_docs.len().min(limit));
         for (score, doc_address) in top_docs {
             let doc: TantivyDocument = searcher.doc(doc_address)?;
 
@@ -76,16 +99,53 @@ impl FullTextSearch {
                 .unwrap_or("")
                 .to_string();
 
+            if normalized_path
+                .as_deref()
+                .is_some_and(|prefix| !path_is_within(&path, prefix))
+            {
+                continue;
+            }
+            if language_filter.is_some_and(|requested| !language.eq_ignore_ascii_case(requested)) {
+                continue;
+            }
+
             results.push(SearchResult {
                 path,
                 symbols,
                 language,
                 score,
             });
+            if results.len() >= limit {
+                break;
+            }
         }
 
         Ok(results)
     }
+}
+
+fn normalize_path_filter(path: &str) -> String {
+    let path = path
+        .replace('\\', "/")
+        .trim_start_matches("./")
+        .trim_matches('/')
+        .to_string();
+    if path == "." {
+        String::new()
+    } else {
+        path
+    }
+}
+
+fn path_is_within(path: &str, prefix: &str) -> bool {
+    if prefix.is_empty() {
+        return true;
+    }
+    let path = path.replace('\\', "/");
+    path == prefix
+        || path
+            .strip_prefix(prefix)
+            .is_some_and(|rest| rest.starts_with('/'))
 }
 
 #[cfg(test)]
@@ -119,6 +179,18 @@ mod tests {
             "pub fn handle_request() {}\npub fn parse_json() {}\n",
         )
         .unwrap();
+        fs::write(
+            src_dir.join("main.ts"),
+            "export function connectDatabase() { return 'database'; }\n",
+        )
+        .unwrap();
+        let test_dir = dir.path().join("tests");
+        fs::create_dir_all(&test_dir).unwrap();
+        fs::write(
+            test_dir.join("database.rs"),
+            "pub fn test_database_connection() {}\n",
+        )
+        .unwrap();
 
         // Index the project
         let index_dir = dir.path().join("index");
@@ -146,6 +218,36 @@ mod tests {
         assert!(
             results[0].path.contains("database"),
             "Top result should be database.rs"
+        );
+
+        let results = search
+            .search_with_filters("database", 10, None, Some("typescript"))
+            .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].path, "src/main.ts");
+
+        let results = search
+            .search_with_filters("database", 10, Some("tests"), None)
+            .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].path, "tests/database.rs");
+
+        let results = search
+            .search_with_filters("database", 10, Some("./src/database.rs/"), Some("rust"))
+            .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].path, "src/database.rs");
+
+        assert!(search
+            .search_with_filters("database", 0, Some("src"), None)
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            search
+                .search_with_filters("database", 10, Some("."), None)
+                .unwrap()
+                .len(),
+            3
         );
 
         // Search for symbol
