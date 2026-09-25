@@ -1,8 +1,8 @@
 use anyhow::Result;
 use tantivy::collector::TopDocs;
-use tantivy::query::QueryParser;
-use tantivy::schema::Value;
-use tantivy::{Index, IndexReader, TantivyDocument};
+use tantivy::query::{BooleanQuery, Occur, Query, QueryParser, RegexQuery, TermQuery};
+use tantivy::schema::{IndexRecordOption, Value};
+use tantivy::{Index, IndexReader, TantivyDocument, Term};
 
 use crate::indexer::code_index::CodeSchema;
 
@@ -25,6 +25,7 @@ pub struct FullTextSearch {
 /// Reference to schema fields for result extraction
 pub struct SchemaRef {
     pub path: tantivy::schema::Field,
+    pub path_exact: tantivy::schema::Field,
     pub symbols: tantivy::schema::Field,
     pub language: tantivy::schema::Field,
 }
@@ -42,6 +43,7 @@ impl FullTextSearch {
             query_parser,
             schema: SchemaRef {
                 path: code_schema.path,
+                path_exact: code_schema.path_exact,
                 symbols: code_schema.symbols,
                 language: code_schema.language,
             },
@@ -66,18 +68,29 @@ impl FullTextSearch {
         }
 
         let query = self.query_parser.parse_query(query)?;
-        let searcher = self.reader.searcher();
-        let has_filters = path.is_some() || language_filter.is_some();
-        let fetch_limit = if has_filters {
-            usize::try_from(searcher.num_docs()).unwrap_or(usize::MAX)
-        } else {
-            limit
-        };
-        let top_docs =
-            searcher.search(&query, &TopDocs::with_limit(fetch_limit).order_by_score())?;
         let normalized_path = path.map(normalize_path_filter);
+        let mut clauses: Vec<(Occur, Box<dyn Query>)> = vec![(Occur::Must, query)];
+        if let Some(path) = normalized_path.as_deref().filter(|path| !path.is_empty()) {
+            let pattern = format!(r"{}(/.*)?", regex::escape(path));
+            clauses.push((
+                Occur::Must,
+                Box::new(RegexQuery::from_pattern(&pattern, self.schema.path_exact)?),
+            ));
+        }
+        if let Some(language) = language_filter {
+            clauses.push((
+                Occur::Must,
+                Box::new(TermQuery::new(
+                    Term::from_field_text(self.schema.language, &language.to_ascii_lowercase()),
+                    IndexRecordOption::Basic,
+                )),
+            ));
+        }
+        let query = BooleanQuery::new(clauses);
+        let searcher = self.reader.searcher();
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(limit).order_by_score())?;
 
-        let mut results = Vec::with_capacity(top_docs.len().min(limit));
+        let mut results = Vec::with_capacity(top_docs.len());
         for (score, doc_address) in top_docs {
             let doc: TantivyDocument = searcher.doc(doc_address)?;
 
@@ -99,25 +112,12 @@ impl FullTextSearch {
                 .unwrap_or("")
                 .to_string();
 
-            if normalized_path
-                .as_deref()
-                .is_some_and(|prefix| !path_is_within(&path, prefix))
-            {
-                continue;
-            }
-            if language_filter.is_some_and(|requested| !language.eq_ignore_ascii_case(requested)) {
-                continue;
-            }
-
             results.push(SearchResult {
                 path,
                 symbols,
                 language,
                 score,
             });
-            if results.len() >= limit {
-                break;
-            }
         }
 
         Ok(results)
@@ -135,17 +135,6 @@ fn normalize_path_filter(path: &str) -> String {
     } else {
         path
     }
-}
-
-fn path_is_within(path: &str, prefix: &str) -> bool {
-    if prefix.is_empty() {
-        return true;
-    }
-    let path = path.replace('\\', "/");
-    path == prefix
-        || path
-            .strip_prefix(prefix)
-            .is_some_and(|rest| rest.starts_with('/'))
 }
 
 #[cfg(test)]

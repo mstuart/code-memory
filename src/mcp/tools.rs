@@ -327,6 +327,15 @@ async fn handle_search_code(args: &Value, project_root: &Path) -> CallToolResult
             let git = include_git_history
                 .then(|| GitHistory::discover(&state.project_path).ok())
                 .flatten();
+            let result_paths: Vec<String> =
+                results.iter().map(|result| result.path.clone()).collect();
+            let histories = git
+                .as_ref()
+                .and_then(|git| {
+                    git.file_histories_from_root(&state.project_path, &result_paths, 3)
+                        .ok()
+                })
+                .unwrap_or_default();
             let mut output = format!("Found {} results for '{}':\n\n", results.len(), query);
             for (i, result) in results.iter().enumerate() {
                 output.push_str(&format!(
@@ -341,13 +350,10 @@ async fn handle_search_code(args: &Value, project_root: &Path) -> CallToolResult
                         &result.symbols
                     },
                 ));
-                if let Some(history) = git
-                    .as_ref()
-                    .and_then(|git| git.file_history(&result.path, 3).ok())
-                {
+                if let Some(history) = histories.get(&result.path) {
                     if !history.commits.is_empty() {
                         output.push_str("   Recent commits:\n");
-                        for commit in history.commits {
+                        for commit in &history.commits {
                             let summary = commit.message.lines().next().unwrap_or("");
                             output.push_str(&format!(
                                 "   - {} {}\n",
