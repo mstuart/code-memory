@@ -1,7 +1,7 @@
 use git2::{Oid, Repository, Sort};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use super::decisions::{Decision, DecisionExtractor};
 
@@ -158,40 +158,124 @@ impl GitHistory {
         file_path: &str,
         max_commits: usize,
     ) -> Result<FileHistory, git2::Error> {
+        let mut histories = self.file_histories(&[file_path.to_string()], max_commits)?;
+        Ok(histories.remove(file_path).unwrap_or_else(|| FileHistory {
+            path: file_path.to_string(),
+            commits: Vec::new(),
+            decisions: Vec::new(),
+            total_changes: 0,
+            first_seen: 0,
+            last_modified: 0,
+        }))
+    }
+
+    /// Get histories for several repository-relative paths with one commit traversal.
+    pub fn file_histories(
+        &self,
+        file_paths: &[String],
+        max_commits: usize,
+    ) -> Result<HashMap<String, FileHistory>, git2::Error> {
+        let mut histories: HashMap<String, FileHistory> = file_paths
+            .iter()
+            .map(|path| {
+                (
+                    path.clone(),
+                    FileHistory {
+                        path: path.clone(),
+                        commits: Vec::new(),
+                        decisions: Vec::new(),
+                        total_changes: 0,
+                        first_seen: 0,
+                        last_modified: 0,
+                    },
+                )
+            })
+            .collect();
+
+        if histories.is_empty() || max_commits == 0 {
+            return Ok(histories);
+        }
+
         let mut revwalk = self.repo.revwalk()?;
         revwalk.push_head()?;
         revwalk.set_sorting(Sort::TIME)?;
 
-        let mut commits = Vec::new();
-        let mut decisions = Vec::new();
-
         for oid_result in revwalk {
             let oid = oid_result?;
             if let Ok(info) = self.commit_info(oid) {
-                if info.files_changed.iter().any(|f| f == file_path) {
-                    let commit_decisions = self.extractor.extract(&info);
-                    decisions.extend(commit_decisions);
-                    commits.push(info);
-
-                    if commits.len() >= max_commits {
-                        break;
+                let matching_paths: Vec<String> = histories
+                    .iter()
+                    .filter(|(path, history)| {
+                        history.commits.len() < max_commits
+                            && info.files_changed.iter().any(|changed| changed == *path)
+                    })
+                    .map(|(path, _)| path.clone())
+                    .collect();
+                if matching_paths.is_empty() {
+                    continue;
+                }
+                let commit_decisions = self.extractor.extract(&info);
+                for path in matching_paths {
+                    if let Some(history) = histories.get_mut(&path) {
+                        history.decisions.extend(commit_decisions.iter().cloned());
+                        history.commits.push(info.clone());
                     }
+                }
+                if histories
+                    .values()
+                    .all(|history| history.commits.len() >= max_commits)
+                {
+                    break;
                 }
             }
         }
 
-        let first_seen = commits.last().map(|c| c.timestamp).unwrap_or(0);
-        let last_modified = commits.first().map(|c| c.timestamp).unwrap_or(0);
-        let total_changes = commits.len();
+        for history in histories.values_mut() {
+            history.first_seen = history.commits.last().map(|c| c.timestamp).unwrap_or(0);
+            history.last_modified = history.commits.first().map(|c| c.timestamp).unwrap_or(0);
+            history.total_changes = history.commits.len();
+        }
 
-        Ok(FileHistory {
-            path: file_path.to_string(),
-            commits,
-            decisions,
-            total_changes,
-            first_seen,
-            last_modified,
-        })
+        Ok(histories)
+    }
+
+    /// Translate index-root-relative paths and load their histories in one traversal.
+    pub fn file_histories_from_root(
+        &self,
+        project_root: &Path,
+        file_paths: &[String],
+        max_commits: usize,
+    ) -> Result<HashMap<String, FileHistory>, git2::Error> {
+        let mappings: HashMap<String, String> = file_paths
+            .iter()
+            .filter_map(|path| {
+                self.repository_relative_path(&project_root.join(path))
+                    .map(|repo_path| (path.clone(), repo_path))
+            })
+            .collect();
+        let repo_paths: Vec<String> = mappings.values().cloned().collect();
+        let repo_histories = self.file_histories(&repo_paths, max_commits)?;
+
+        Ok(mappings
+            .into_iter()
+            .filter_map(|(index_path, repo_path)| {
+                repo_histories.get(&repo_path).cloned().map(|mut history| {
+                    history.path.clone_from(&index_path);
+                    (index_path, history)
+                })
+            })
+            .collect())
+    }
+
+    fn repository_relative_path(&self, path: &Path) -> Option<String> {
+        let workdir = self.repo.workdir()?;
+        let canonical_workdir =
+            std::fs::canonicalize(workdir).unwrap_or_else(|_| PathBuf::from(workdir));
+        let canonical_path = std::fs::canonicalize(path).unwrap_or_else(|_| PathBuf::from(path));
+        canonical_path
+            .strip_prefix(canonical_workdir)
+            .ok()
+            .map(|path| path.to_string_lossy().replace('\\', "/"))
     }
 
     /// Extract all decisions from the repository's commit history.
@@ -325,6 +409,12 @@ mod tests {
             .unwrap();
 
         std::fs::write(path.join("test.rs"), "fn main() {}").unwrap();
+        std::fs::create_dir_all(path.join("packages/app/src")).unwrap();
+        std::fs::write(
+            path.join("packages/app/src/nested.rs"),
+            "pub fn nested() {}",
+        )
+        .unwrap();
         Command::new("git")
             .args(["add", "."])
             .current_dir(&path)
@@ -374,6 +464,24 @@ mod tests {
         let history = git.file_history("test.rs", 100).unwrap();
         assert_eq!(history.path, "test.rs");
         assert_eq!(history.commits.len(), 1);
+    }
+
+    #[test]
+    fn test_file_histories_from_nested_project_root() {
+        let (_dir, path) = setup_test_repo();
+        let git = GitHistory::open(&path).unwrap();
+        let histories = git
+            .file_histories_from_root(
+                &path.join("packages/app"),
+                &[String::from("src/nested.rs")],
+                3,
+            )
+            .unwrap();
+        let history = histories.get("src/nested.rs").unwrap();
+        assert_eq!(history.commits.len(), 1);
+        assert!(history.commits[0]
+            .files_changed
+            .contains(&String::from("packages/app/src/nested.rs")));
     }
 
     #[test]

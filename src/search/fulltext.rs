@@ -1,8 +1,8 @@
 use anyhow::Result;
 use tantivy::collector::TopDocs;
-use tantivy::query::QueryParser;
-use tantivy::schema::Value;
-use tantivy::{Index, IndexReader, TantivyDocument};
+use tantivy::query::{BooleanQuery, Occur, Query, QueryParser, RegexQuery, TermQuery};
+use tantivy::schema::{IndexRecordOption, Value};
+use tantivy::{Index, IndexReader, TantivyDocument, Term};
 
 use crate::indexer::code_index::CodeSchema;
 
@@ -25,6 +25,7 @@ pub struct FullTextSearch {
 /// Reference to schema fields for result extraction
 pub struct SchemaRef {
     pub path: tantivy::schema::Field,
+    pub path_exact: tantivy::schema::Field,
     pub symbols: tantivy::schema::Field,
     pub language: tantivy::schema::Field,
 }
@@ -42,6 +43,7 @@ impl FullTextSearch {
             query_parser,
             schema: SchemaRef {
                 path: code_schema.path,
+                path_exact: code_schema.path_exact,
                 symbols: code_schema.symbols,
                 language: code_schema.language,
             },
@@ -50,7 +52,41 @@ impl FullTextSearch {
 
     /// Search the index with a query string
     pub fn search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>> {
+        self.search_with_filters(query, limit, None, None)
+    }
+
+    /// Search the index while optionally restricting results to a path and language.
+    pub fn search_with_filters(
+        &self,
+        query: &str,
+        limit: usize,
+        path: Option<&str>,
+        language_filter: Option<&str>,
+    ) -> Result<Vec<SearchResult>> {
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+
         let query = self.query_parser.parse_query(query)?;
+        let normalized_path = path.map(normalize_path_filter);
+        let mut clauses: Vec<(Occur, Box<dyn Query>)> = vec![(Occur::Must, query)];
+        if let Some(path) = normalized_path.as_deref().filter(|path| !path.is_empty()) {
+            let pattern = format!(r"{}(/.*)?", regex::escape(path));
+            clauses.push((
+                Occur::Must,
+                Box::new(RegexQuery::from_pattern(&pattern, self.schema.path_exact)?),
+            ));
+        }
+        if let Some(language) = language_filter {
+            clauses.push((
+                Occur::Must,
+                Box::new(TermQuery::new(
+                    Term::from_field_text(self.schema.language, &language.to_ascii_lowercase()),
+                    IndexRecordOption::Basic,
+                )),
+            ));
+        }
+        let query = BooleanQuery::new(clauses);
         let searcher = self.reader.searcher();
         let top_docs = searcher.search(&query, &TopDocs::with_limit(limit).order_by_score())?;
 
@@ -88,6 +124,19 @@ impl FullTextSearch {
     }
 }
 
+fn normalize_path_filter(path: &str) -> String {
+    let path = path
+        .replace('\\', "/")
+        .trim_start_matches("./")
+        .trim_matches('/')
+        .to_string();
+    if path == "." {
+        String::new()
+    } else {
+        path
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -119,6 +168,18 @@ mod tests {
             "pub fn handle_request() {}\npub fn parse_json() {}\n",
         )
         .unwrap();
+        fs::write(
+            src_dir.join("main.ts"),
+            "export function connectDatabase() { return 'database'; }\n",
+        )
+        .unwrap();
+        let test_dir = dir.path().join("tests");
+        fs::create_dir_all(&test_dir).unwrap();
+        fs::write(
+            test_dir.join("database.rs"),
+            "pub fn test_database_connection() {}\n",
+        )
+        .unwrap();
 
         // Index the project
         let index_dir = dir.path().join("index");
@@ -146,6 +207,36 @@ mod tests {
         assert!(
             results[0].path.contains("database"),
             "Top result should be database.rs"
+        );
+
+        let results = search
+            .search_with_filters("database", 10, None, Some("typescript"))
+            .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].path, "src/main.ts");
+
+        let results = search
+            .search_with_filters("database", 10, Some("tests"), None)
+            .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].path, "tests/database.rs");
+
+        let results = search
+            .search_with_filters("database", 10, Some("./src/database.rs/"), Some("rust"))
+            .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].path, "src/database.rs");
+
+        assert!(search
+            .search_with_filters("database", 0, Some("src"), None)
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            search
+                .search_with_filters("database", 10, Some("."), None)
+                .unwrap()
+                .len(),
+            3
         );
 
         // Search for symbol

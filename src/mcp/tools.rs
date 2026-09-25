@@ -293,6 +293,12 @@ async fn handle_search_code(args: &Value, project_root: &Path) -> CallToolResult
         .get("max_results")
         .and_then(|v| v.as_u64())
         .unwrap_or(10) as usize;
+    let path = args.get("path").and_then(|v| v.as_str());
+    let language = args.get("language").and_then(|v| v.as_str());
+    let include_git_history = args
+        .get("include_git_history")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
 
     info!(
         "search_code: query={:?} max={} root={:?}",
@@ -309,12 +315,27 @@ async fn handle_search_code(args: &Value, project_root: &Path) -> CallToolResult
     let guard = get_state_lock().lock().unwrap();
     let state = guard.as_ref().unwrap();
 
-    match state.search.search(query, max_results) {
+    match state
+        .search
+        .search_with_filters(query, max_results, path, language)
+    {
         Ok(results) => {
             if results.is_empty() {
                 return CallToolResult::text(format!("No results found for '{}'", query));
             }
 
+            let git = include_git_history
+                .then(|| GitHistory::discover(&state.project_path).ok())
+                .flatten();
+            let result_paths: Vec<String> =
+                results.iter().map(|result| result.path.clone()).collect();
+            let histories = git
+                .as_ref()
+                .and_then(|git| {
+                    git.file_histories_from_root(&state.project_path, &result_paths, 3)
+                        .ok()
+                })
+                .unwrap_or_default();
             let mut output = format!("Found {} results for '{}':\n\n", results.len(), query);
             for (i, result) in results.iter().enumerate() {
                 output.push_str(&format!(
@@ -329,6 +350,20 @@ async fn handle_search_code(args: &Value, project_root: &Path) -> CallToolResult
                         &result.symbols
                     },
                 ));
+                if let Some(history) = histories.get(&result.path) {
+                    if !history.commits.is_empty() {
+                        output.push_str("   Recent commits:\n");
+                        for commit in &history.commits {
+                            let summary = commit.message.lines().next().unwrap_or("");
+                            output.push_str(&format!(
+                                "   - {} {}\n",
+                                &commit.id[..8.min(commit.id.len())],
+                                summary
+                            ));
+                        }
+                        output.push('\n');
+                    }
+                }
             }
             CallToolResult::text(output)
         }

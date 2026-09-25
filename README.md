@@ -157,12 +157,15 @@ Code Memory provides 7 MCP tools for AI assistants:
 
 ### 1. `search_code`
 
-Search codebase with semantic + full-text search:
+Search the indexed codebase, optionally filtering by path or language and including recent commits:
 
 ```typescript
 search_code({
   query: "authentication flow",
-  limit: 10
+  max_results: 10,
+  path: "src",
+  language: "rust",
+  include_git_history: true
 })
 ```
 
