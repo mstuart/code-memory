@@ -89,3 +89,28 @@ fn test_debouncing() {
     // Cleanup
     fs::remove_dir_all(&temp_dir).unwrap();
 }
+
+#[test]
+fn test_has_changes_does_not_consume_ready_changes() {
+    let temp_dir = std::env::temp_dir().join("code-memory-test-has-changes");
+    let _ = fs::remove_dir_all(&temp_dir);
+    fs::create_dir_all(&temp_dir).unwrap();
+
+    let test_file = temp_dir.join("test.rs");
+    fs::write(&test_file, "fn main() {}").unwrap();
+    let mut watcher = FileWatcher::new(temp_dir.clone()).unwrap();
+    std::thread::sleep(Duration::from_millis(100));
+
+    fs::write(&test_file, "fn main() { println!(\"changed\"); }").unwrap();
+    std::thread::sleep(Duration::from_millis(100));
+    assert!(!watcher.has_changes(), "changes should still be debouncing");
+
+    std::thread::sleep(Duration::from_millis(500));
+    assert!(watcher.has_changes(), "ready changes should be observable");
+    assert!(
+        !watcher.get_changes().is_empty(),
+        "checking for changes must not consume them"
+    );
+
+    fs::remove_dir_all(&temp_dir).unwrap();
+}
