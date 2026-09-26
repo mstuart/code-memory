@@ -35,7 +35,7 @@ impl FileWatcher {
         })
     }
 
-    pub fn get_changes(&mut self) -> Vec<PathBuf> {
+    fn collect_events(&mut self) {
         let now = Instant::now();
 
         // Process all pending events and record the time we saw the last one
@@ -66,22 +66,30 @@ impl FileWatcher {
         if saw_events {
             self.last_event_time = Some(now);
         }
+    }
+
+    fn changes_ready(&self) -> bool {
+        !self.changed_files.is_empty()
+            && self
+                .last_event_time
+                .is_some_and(|last| last.elapsed() >= self.debounce_duration)
+    }
+
+    pub fn get_changes(&mut self) -> Vec<PathBuf> {
+        self.collect_events();
 
         // Return changes if we have any and no events in the last debounce period
-        if !self.changed_files.is_empty() {
-            if let Some(last) = self.last_event_time {
-                if last.elapsed() >= self.debounce_duration {
-                    let changes: Vec<PathBuf> = self.changed_files.drain().collect();
-                    self.last_event_time = None;
-                    return changes;
-                }
-            }
+        if self.changes_ready() {
+            let changes: Vec<PathBuf> = self.changed_files.drain().collect();
+            self.last_event_time = None;
+            return changes;
         }
 
         vec![]
     }
 
     pub fn has_changes(&mut self) -> bool {
-        !self.get_changes().is_empty()
+        self.collect_events();
+        self.changes_ready()
     }
 }
