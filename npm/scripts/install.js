@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { execSync } = require("node:child_process");
+const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const http = require("node:http");
 const https = require("node:https");
@@ -79,7 +79,7 @@ function extractTarGz(buffer, destDir) {
   fs.writeFileSync(tmpFile, buffer);
 
   try {
-    execSync(`tar xzf "${tmpFile}" -C "${destDir}"`, { stdio: "pipe" });
+    execFileSync("tar", ["xzf", tmpFile, "-C", destDir], { stdio: "pipe" });
   } finally {
     try {
       fs.unlinkSync(tmpFile);
@@ -94,7 +94,7 @@ function extractZip(buffer, destDir) {
   fs.writeFileSync(tmpFile, buffer);
 
   try {
-    execSync(`unzip -o "${tmpFile}" -d "${destDir}"`, { stdio: "pipe" });
+    execFileSync("unzip", ["-o", tmpFile, "-d", destDir], { stdio: "pipe" });
   } finally {
     try {
       fs.unlinkSync(tmpFile);
@@ -166,7 +166,11 @@ async function install() {
   }
 }
 
-install().catch((error) => {
-  console.error("Installation failed:", error.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  install().catch((error) => {
+    console.error("Installation failed:", error.message);
+    process.exit(1);
+  });
+}
+
+module.exports = { extractTarGz, extractZip };
