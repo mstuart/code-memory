@@ -2,15 +2,17 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const test = require("node:test");
 const { execFileSync } = require("node:child_process");
 
 const { extractTarGz } = require("./install");
 
-const root = fs.mkdtempSync(
-  path.join(os.tmpdir(), "code-memory-install-test-")
-);
+test("extractTarGz treats destination paths as literal arguments", (t) => {
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "code-memory-install-test-")
+  );
+  t.after(() => fs.rmSync(root, { force: true, recursive: true }));
 
-try {
   const source = path.join(root, "source");
   const destination = path.join(root, "$(touch injected)");
   const archive = path.join(root, "fixture.tar.gz");
@@ -30,6 +32,4 @@ try {
     false,
     "archive extraction must not execute shell syntax from paths"
   );
-} finally {
-  fs.rmSync(root, { force: true, recursive: true });
-}
+});
