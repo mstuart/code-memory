@@ -70,9 +70,10 @@ impl McpServer {
 
     /// Handle a single JSON-RPC request. Returns None for notifications.
     async fn handle_request(&self, request: JsonRpcRequest) -> Option<JsonRpcResponse> {
-        let id = request.id.clone();
+        let is_notification = request.id.is_none();
+        let id = request.id;
 
-        match request.method.as_str() {
+        let response = match request.method.as_str() {
             // Lifecycle
             "initialize" => Some(self.handle_initialize(id)),
             "initialized" => {
@@ -96,6 +97,12 @@ impl McpServer {
                     format!("Method not found: {}", method),
                 ))
             }
+        };
+
+        if is_notification {
+            None
+        } else {
+            response
         }
     }
 
@@ -135,5 +142,26 @@ impl McpServer {
         let result = tools::dispatch(&params.name, params.arguments, &self.project_root).await;
 
         JsonRpcResponse::success(id, serde_json::to_value(result).unwrap())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::McpServer;
+    use crate::mcp::protocol::JsonRpcRequest;
+    use serde_json::{json, Value};
+
+    fn request(value: Value) -> JsonRpcRequest {
+        serde_json::from_value(value).unwrap()
+    }
+
+    #[tokio::test]
+    async fn notifications_do_not_receive_responses() {
+        let server = McpServer::new(".".into());
+        let response = server
+            .handle_request(request(json!({"jsonrpc": "2.0", "method": "ping"})))
+            .await;
+
+        assert!(response.is_none());
     }
 }
