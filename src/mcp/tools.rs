@@ -465,13 +465,7 @@ async fn handle_trace_decision(args: &Value, project_root: &Path) -> CallToolRes
         }
     };
 
-    let max_commits = match time_range {
-        "7d" => 100,
-        "30d" => 500,
-        "90d" => 1000,
-        "1y" => 2000,
-        _ => 5000, // "all"
-    };
+    let (max_commits, cutoff) = decision_time_range(time_range, chrono::Utc::now().timestamp());
 
     let timeline = match git.extract_all_decisions(max_commits) {
         Ok(t) => t,
@@ -486,11 +480,12 @@ async fn handle_trace_decision(args: &Value, project_root: &Path) -> CallToolRes
         .decisions
         .iter()
         .filter(|d| {
-            d.summary.to_lowercase().contains(&topic_lower)
-                || d.details.to_lowercase().contains(&topic_lower)
-                || d.files_affected
-                    .iter()
-                    .any(|f| f.to_lowercase().contains(&topic_lower))
+            cutoff.is_none_or(|cutoff| d.timestamp >= cutoff)
+                && (d.summary.to_lowercase().contains(&topic_lower)
+                    || d.details.to_lowercase().contains(&topic_lower)
+                    || d.files_affected
+                        .iter()
+                        .any(|f| f.to_lowercase().contains(&topic_lower)))
         })
         .collect();
 
@@ -532,6 +527,18 @@ async fn handle_trace_decision(args: &Value, project_root: &Path) -> CallToolRes
     }
 
     CallToolResult::text(output)
+}
+
+fn decision_time_range(time_range: &str, now: i64) -> (usize, Option<i64>) {
+    let (max_commits, days) = match time_range {
+        "7d" => (100, Some(7)),
+        "30d" => (500, Some(30)),
+        "90d" => (1000, Some(90)),
+        "1y" => (2000, Some(365)),
+        _ => (5000, None),
+    };
+    let cutoff = days.map(|days| now.saturating_sub(days * 24 * 60 * 60));
+    (max_commits, cutoff)
 }
 
 async fn handle_find_related(args: &Value, project_root: &Path) -> CallToolResult {
@@ -929,4 +936,32 @@ async fn handle_get_session_patterns(args: &Value, _project_root: &Path) -> Call
     }
 
     CallToolResult::text(output)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decision_time_range;
+
+    #[test]
+    fn decision_time_ranges_have_real_timestamp_cutoffs() {
+        let now = 2_000_000_000;
+
+        assert_eq!(
+            decision_time_range("7d", now),
+            (100, Some(now - 7 * 24 * 60 * 60))
+        );
+        assert_eq!(
+            decision_time_range("1y", now),
+            (2000, Some(now - 365 * 24 * 60 * 60))
+        );
+    }
+
+    #[test]
+    fn all_and_unknown_time_ranges_do_not_filter_by_date() {
+        assert_eq!(decision_time_range("all", 2_000_000_000), (5000, None));
+        assert_eq!(
+            decision_time_range("unexpected", 2_000_000_000),
+            (5000, None)
+        );
+    }
 }
