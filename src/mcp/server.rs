@@ -40,24 +40,11 @@ impl McpServer {
 
             debug!("Received: {}", line);
 
-            let request_value: Value = match serde_json::from_str(&line) {
-                Ok(value) => value,
-                Err(e) => {
-                    error!("Failed to parse request: {}", e);
-                    let resp = JsonRpcResponse::error(None, -32700, format!("Parse error: {}", e));
-                    Self::write_response(&mut stdout, &resp).await?;
-                    continue;
-                }
-            };
-            let is_notification = request_value
-                .as_object()
-                .is_some_and(|request| !request.contains_key("id"));
-            let request: JsonRpcRequest = match serde_json::from_value(request_value) {
+            let (request, is_notification) = match Self::parse_request(&line) {
                 Ok(request) => request,
-                Err(e) => {
-                    error!("Failed to parse request: {}", e);
-                    let resp = JsonRpcResponse::error(None, -32700, format!("Parse error: {}", e));
-                    Self::write_response(&mut stdout, &resp).await?;
+                Err(response) => {
+                    error!("Rejected invalid JSON-RPC input");
+                    Self::write_response(&mut stdout, &response).await?;
                     continue;
                 }
             };
@@ -69,6 +56,36 @@ impl McpServer {
 
         info!("code-memory MCP server shutting down");
         Ok(())
+    }
+
+    fn parse_request(line: &str) -> Result<(JsonRpcRequest, bool), Box<JsonRpcResponse>> {
+        let request_value: Value = serde_json::from_str(line).map_err(|error| {
+            Box::new(JsonRpcResponse::error(
+                None,
+                -32700,
+                format!("Parse error: {error}"),
+            ))
+        })?;
+        let is_notification = request_value
+            .as_object()
+            .is_some_and(|request| !request.contains_key("id"));
+        let request: JsonRpcRequest = serde_json::from_value(request_value).map_err(|error| {
+            Box::new(JsonRpcResponse::error(
+                None,
+                -32600,
+                format!("Invalid Request: {error}"),
+            ))
+        })?;
+
+        if request.jsonrpc != "2.0" {
+            return Err(Box::new(JsonRpcResponse::error(
+                None,
+                -32600,
+                "Invalid Request: jsonrpc must be \"2.0\"".to_string(),
+            )));
+        }
+
+        Ok((request, is_notification))
     }
 
     async fn write_response(stdout: &mut io::Stdout, response: &JsonRpcResponse) -> Result<()> {
@@ -192,5 +209,22 @@ mod tests {
         let response = serde_json::to_value(response.unwrap()).unwrap();
         assert!(response.get("id").is_some());
         assert!(response["id"].is_null());
+    }
+
+    #[test]
+    fn distinguishes_malformed_json_from_invalid_requests() {
+        let malformed = McpServer::parse_request("{").unwrap_err();
+        let invalid = McpServer::parse_request(r#"{"jsonrpc":"2.0","id":1}"#).unwrap_err();
+
+        assert_eq!(malformed.error.unwrap().code, -32700);
+        assert_eq!(invalid.error.unwrap().code, -32600);
+    }
+
+    #[test]
+    fn rejects_unsupported_json_rpc_versions() {
+        let response =
+            McpServer::parse_request(r#"{"jsonrpc":"1.0","id":1,"method":"ping"}"#).unwrap_err();
+
+        assert_eq!(response.error.unwrap().code, -32600);
     }
 }
