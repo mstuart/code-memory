@@ -148,7 +148,10 @@ Remember important facts:
 
 ```bash
 # Via MCP server
-remember("We use JWT for auth because of scalability requirements")
+remember({
+  topic: "auth-strategy",
+  content: "We use JWT for auth because of scalability requirements"
+})
 ```
 
 ## MCP Tools
@@ -175,9 +178,7 @@ Get detailed explanation of a symbol:
 
 ```typescript
 explain_code({
-  symbol: "UserService",
-  include_dependencies: true,
-  file: "src/services/user.rs"
+  symbol: "UserService"
 })
 ```
 
@@ -188,8 +189,7 @@ Find why a decision was made:
 ```typescript
 trace_decision({
   topic: "why microservices",
-  time_range: "90d",
-  file: "src/services"
+  time_range: "90d"
 })
 ```
 
@@ -200,7 +200,6 @@ Find related code and dependencies:
 ```typescript
 find_related({
   file: "src/auth/controller.ts",
-  depth: 2,
   direction: "both" // "dependencies" | "dependents" | "both"
 })
 ```
@@ -234,8 +233,7 @@ Retrieve learned patterns:
 ```typescript
 get_session_patterns({
   pattern_type: "testing", // "naming" | "error" | "testing" | "organization" | "import" | "config"
-  min_confidence: 0.7,
-  top: 10
+  min_confidence: 0.7
 })
 ```
 
