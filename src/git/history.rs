@@ -324,12 +324,25 @@ impl GitHistory {
 
     /// Get recently modified files.
     pub fn recent_files(&self, limit: usize) -> Result<Vec<(String, i64)>, git2::Error> {
-        let commits = self.walk_commits(limit * 3)?;
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+
+        let mut revwalk = self.repo.revwalk()?;
+        revwalk.push_head()?;
+        revwalk.set_sorting(Sort::TIME)?;
         let mut seen = HashMap::new();
 
-        for commit in &commits {
+        for oid_result in revwalk {
+            let oid = oid_result?;
+            let Ok(commit) = self.commit_info(oid) else {
+                continue;
+            };
             for file in &commit.files_changed {
                 seen.entry(file.clone()).or_insert(commit.timestamp);
+            }
+            if seen.len() >= limit {
+                break;
             }
         }
 
@@ -455,6 +468,37 @@ mod tests {
         let git = GitHistory::open(&path).unwrap();
         let commits = git.walk_commits(100).unwrap();
         assert_eq!(commits.len(), 2);
+    }
+
+    #[test]
+    fn test_recent_files_scans_past_repeated_changes() {
+        let (_dir, path) = setup_test_repo();
+
+        // More than the old `limit * 3` lookahead all touch the same file. The older
+        // commit still contains another recently modified file that should be returned.
+        for revision in 0..6 {
+            std::fs::write(
+                path.join("lib.rs"),
+                format!("pub fn hello() {{ /* {revision} */ }}"),
+            )
+            .unwrap();
+            Command::new("git")
+                .args(["add", "lib.rs"])
+                .current_dir(&path)
+                .output()
+                .unwrap();
+            Command::new("git")
+                .args(["commit", "-m", &format!("Update library {revision}")])
+                .current_dir(&path)
+                .output()
+                .unwrap();
+        }
+
+        let git = GitHistory::open(&path).unwrap();
+        let files = git.recent_files(2).unwrap();
+
+        assert_eq!(files.len(), 2);
+        assert!(files.iter().any(|(file, _)| file == "lib.rs"));
     }
 
     #[test]
