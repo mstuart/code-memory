@@ -339,6 +339,9 @@ impl GitHistory {
                 continue;
             };
             for file in &commit.files_changed {
+                if seen.len() >= limit {
+                    break;
+                }
                 seen.entry(file.clone()).or_insert(commit.timestamp);
             }
             if seen.len() >= limit {
@@ -495,10 +498,14 @@ mod tests {
         }
 
         let git = GitHistory::open(&path).unwrap();
+        assert_eq!(git.walk_commits(100).unwrap().len(), 8);
         let files = git.recent_files(2).unwrap();
 
         assert_eq!(files.len(), 2);
-        assert!(files.iter().any(|(file, _)| file == "lib.rs"));
+        assert!(
+            files.iter().any(|(file, _)| file == "lib.rs"),
+            "recent files: {files:?}"
+        );
     }
 
     #[test]
