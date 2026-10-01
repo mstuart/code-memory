@@ -2,7 +2,7 @@ use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::visit::Bfs;
 use petgraph::Direction;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use super::imports::ImportParser;
@@ -40,30 +40,20 @@ fn normalize_path(path: &str) -> String {
     parts.join("/")
 }
 
-fn source_placeholders(file_path: &str) -> Vec<String> {
-    let path = Path::new(file_path);
-    let mut placeholders = Vec::new();
-
-    if matches!(
-        path.extension().and_then(|extension| extension.to_str()),
-        Some("ts" | "tsx" | "js" | "jsx" | "py" | "rs" | "go")
-    ) {
-        placeholders.push(path.with_extension("").to_string_lossy().into_owned());
-    }
-
-    if path.file_stem().and_then(|stem| stem.to_str()) == Some("index") {
-        if let Some(parent) = path.parent() {
-            placeholders.push(parent.to_string_lossy().into_owned());
-        }
-    }
-
-    placeholders
+#[derive(Debug, Clone)]
+struct ImportEdge {
+    source: NodeIndex,
+    target: NodeIndex,
+    relative_path: Option<String>,
 }
 
 /// Dependency graph built from import analysis.
 pub struct DependencyGraph {
     graph: DiGraph<String, ()>,
     node_map: HashMap<String, NodeIndex>,
+    source_paths: HashSet<String>,
+    relative_placeholders: HashMap<String, NodeIndex>,
+    import_edges: Vec<ImportEdge>,
     parser: ImportParser,
 }
 
@@ -78,6 +68,9 @@ impl DependencyGraph {
         Self {
             graph: DiGraph::new(),
             node_map: HashMap::new(),
+            source_paths: HashSet::new(),
+            relative_placeholders: HashMap::new(),
+            import_edges: Vec::new(),
             parser: ImportParser::new(),
         }
     }
@@ -85,63 +78,101 @@ impl DependencyGraph {
     /// Add a file and its imports to the graph.
     pub fn add_file(&mut self, file_path: &str, content: &str) {
         let source_idx = self.get_or_create_source_node(file_path);
+        self.rebind_relative_imports();
         let imports = self.parser.parse(file_path, content);
 
         for import in &imports {
             let resolved =
                 self.resolve_import(file_path, &import.imported_path, import.is_relative);
-            // Try to match against a known node (with common extensions)
-            let target_key = self.find_matching_node(&resolved).unwrap_or(resolved);
-            let target_idx = self.get_or_create_node(&target_key);
+            let (target_idx, relative_path) = if import.is_relative {
+                let target_idx = self
+                    .find_matching_source(&resolved)
+                    .unwrap_or_else(|| self.get_or_create_relative_placeholder(&resolved));
+                (target_idx, Some(resolved))
+            } else {
+                (self.get_or_create_node(&resolved), None)
+            };
             if !self.graph.contains_edge(source_idx, target_idx) {
                 self.graph.add_edge(source_idx, target_idx, ());
             }
+            self.import_edges.push(ImportEdge {
+                source: source_idx,
+                target: target_idx,
+                relative_path,
+            });
         }
     }
 
-    /// Reuse an extensionless node that an earlier import created for this file.
-    ///
-    /// Imports such as `./router` are discovered before we necessarily walk
-    /// `router.ts`. Without reconciling that placeholder, the import edge and
-    /// the real file end up on separate nodes and graph results depend on walk
-    /// order.
     fn get_or_create_source_node(&mut self, file_path: &str) -> NodeIndex {
-        if let Some(&idx) = self.node_map.get(file_path) {
-            return idx;
-        }
-
-        for placeholder in source_placeholders(file_path) {
-            if let Some(idx) = self.node_map.remove(&placeholder) {
-                self.graph[idx] = file_path.to_string();
-                self.node_map.insert(file_path.to_string(), idx);
-                return idx;
-            }
-        }
-
-        self.get_or_create_node(file_path)
+        let idx = self.get_or_create_node(file_path);
+        self.source_paths.insert(file_path.to_string());
+        idx
     }
 
-    /// Try to find an existing node that matches the import path,
-    /// accounting for missing file extensions (common in JS/TS/Python).
-    fn find_matching_node(&self, resolved: &str) -> Option<String> {
-        if self.node_map.contains_key(resolved) {
-            return Some(resolved.to_string());
+    /// Find the deterministic best source for an import path. Extension files
+    /// take precedence over directory indexes regardless of walk order.
+    fn find_matching_source(&self, resolved: &str) -> Option<NodeIndex> {
+        if self.source_paths.contains(resolved) {
+            return self.node_map.get(resolved).copied();
         }
-        // Try common extensions
         for ext in &[".ts", ".tsx", ".js", ".jsx", ".py", ".rs", ".go"] {
             let with_ext = format!("{}{}", resolved, ext);
-            if self.node_map.contains_key(&with_ext) {
-                return Some(with_ext);
+            if self.source_paths.contains(&with_ext) {
+                return self.node_map.get(&with_ext).copied();
             }
         }
-        // Try index files (JS/TS convention)
         for ext in &["/index.ts", "/index.js", "/index.tsx"] {
             let with_index = format!("{}{}", resolved, ext);
-            if self.node_map.contains_key(&with_index) {
-                return Some(with_index);
+            if self.source_paths.contains(&with_index) {
+                return self.node_map.get(&with_index).copied();
             }
         }
         None
+    }
+
+    fn get_or_create_relative_placeholder(&mut self, path: &str) -> NodeIndex {
+        if let Some(&idx) = self.relative_placeholders.get(path) {
+            return idx;
+        }
+        let idx = self.graph.add_node(path.to_string());
+        self.relative_placeholders.insert(path.to_string(), idx);
+        idx
+    }
+
+    /// Redirect unresolved relative imports whenever a newly discovered source
+    /// is a better match. Keeping import bindings separate from graph nodes also
+    /// prevents bare packages with the same name from being claimed as files.
+    fn rebind_relative_imports(&mut self) {
+        for edge_index in 0..self.import_edges.len() {
+            let Some(relative_path) = self.import_edges[edge_index].relative_path.clone() else {
+                continue;
+            };
+            let Some(new_target) = self.find_matching_source(&relative_path) else {
+                continue;
+            };
+            let source = self.import_edges[edge_index].source;
+            let old_target = self.import_edges[edge_index].target;
+            if new_target == old_target {
+                continue;
+            }
+
+            self.import_edges[edge_index].target = new_target;
+            let old_edge_is_still_used = self
+                .import_edges
+                .iter()
+                .any(|edge| edge.source == source && edge.target == old_target);
+            if !old_edge_is_still_used {
+                if let Some(edge) = self.graph.find_edge(source, old_target) {
+                    self.graph.remove_edge(edge);
+                }
+            }
+            if !self.graph.contains_edge(source, new_target) {
+                self.graph.add_edge(source, new_target, ());
+            }
+            if self.relative_placeholders.get(&relative_path) == Some(&old_target) {
+                self.relative_placeholders.remove(&relative_path);
+            }
+        }
     }
 
     fn get_or_create_node(&mut self, path: &str) -> NodeIndex {
@@ -152,6 +183,13 @@ impl DependencyGraph {
             self.node_map.insert(path.to_string(), idx);
             idx
         }
+    }
+
+    fn lookup_node(&self, path: &str) -> Option<NodeIndex> {
+        self.node_map
+            .get(path)
+            .or_else(|| self.relative_placeholders.get(path))
+            .copied()
     }
 
     fn resolve_import(&self, source_file: &str, import_path: &str, is_relative: bool) -> String {
@@ -199,7 +237,7 @@ impl DependencyGraph {
 
     /// What does this file depend on? (direct)
     pub fn depends_on(&self, file_path: &str) -> Vec<String> {
-        let Some(&idx) = self.node_map.get(file_path) else {
+        let Some(idx) = self.lookup_node(file_path) else {
             return Vec::new();
         };
         self.graph
@@ -210,7 +248,7 @@ impl DependencyGraph {
 
     /// What depends on this file? (direct)
     pub fn depended_on_by(&self, file_path: &str) -> Vec<String> {
-        let Some(&idx) = self.node_map.get(file_path) else {
+        let Some(idx) = self.lookup_node(file_path) else {
             return Vec::new();
         };
         self.graph
@@ -221,7 +259,7 @@ impl DependencyGraph {
 
     /// Find all transitively related code (BFS from file).
     pub fn transitive_dependencies(&self, file_path: &str) -> Vec<String> {
-        let Some(&idx) = self.node_map.get(file_path) else {
+        let Some(idx) = self.lookup_node(file_path) else {
             return Vec::new();
         };
         let mut bfs = Bfs::new(&self.graph, idx);
@@ -248,6 +286,7 @@ impl DependencyGraph {
     pub fn all_nodes(&self) -> Vec<NodeInfo> {
         self.node_map
             .iter()
+            .chain(self.relative_placeholders.iter())
             .map(|(path, &idx)| {
                 let ext = Path::new(path)
                     .extension()
@@ -281,7 +320,10 @@ impl DependencyGraph {
 
     /// Total nodes and edges.
     pub fn stats(&self) -> (usize, usize) {
-        (self.graph.node_count(), self.graph.edge_count())
+        (
+            self.node_map.len() + self.relative_placeholders.len(),
+            self.graph.edge_count(),
+        )
     }
 
     /// Files with most incoming dependencies.
@@ -289,6 +331,7 @@ impl DependencyGraph {
         let mut counts: Vec<(String, usize)> = self
             .node_map
             .iter()
+            .chain(self.relative_placeholders.iter())
             .map(|(path, &idx)| {
                 (
                     path.clone(),
@@ -308,6 +351,7 @@ impl DependencyGraph {
         let mut counts: Vec<(String, usize)> = self
             .node_map
             .iter()
+            .chain(self.relative_placeholders.iter())
             .map(|(path, &idx)| {
                 (
                     path.clone(),
@@ -377,6 +421,63 @@ mod tests {
             graph.depends_on("src/main.ts"),
             vec!["src/api/index.ts".to_string()]
         );
+    }
+
+    #[test]
+    fn reconciles_all_aliases_for_an_index_source() {
+        let mut graph = DependencyGraph::new();
+
+        graph.add_file("src/a.ts", "import { api } from './api';\n");
+        graph.add_file("src/b.ts", "import { api } from './api/index';\n");
+        graph.add_file("src/api/index.ts", "export const api = {};\n");
+
+        let mut dependents = graph.depended_on_by("src/api/index.ts");
+        dependents.sort();
+        assert_eq!(
+            dependents,
+            vec!["src/a.ts".to_string(), "src/b.ts".to_string()]
+        );
+    }
+
+    #[test]
+    fn extension_file_wins_over_index_regardless_of_walk_order() {
+        for sources in [
+            ["src/api.ts", "src/api/index.ts"],
+            ["src/api/index.ts", "src/api.ts"],
+        ] {
+            let mut graph = DependencyGraph::new();
+            graph.add_file("src/main.ts", "import { api } from './api';\n");
+            for source in sources {
+                graph.add_file(source, "export const api = {};\n");
+            }
+
+            assert_eq!(
+                graph.depends_on("src/main.ts"),
+                vec!["src/api.ts".to_string()]
+            );
+        }
+    }
+
+    #[test]
+    fn bare_packages_are_not_reconciled_with_local_sources() {
+        let mut graph = DependencyGraph::new();
+
+        graph.add_file("src/main.ts", "import express from 'express';\n");
+        graph.add_file("express.js", "export default {};\n");
+
+        assert_eq!(graph.depends_on("src/main.ts"), vec!["express".to_string()]);
+        assert!(graph.depended_on_by("express.js").is_empty());
+    }
+
+    #[test]
+    fn unsupported_index_files_do_not_claim_module_imports() {
+        let mut graph = DependencyGraph::new();
+
+        graph.add_file("src/main.ts", "import { api } from './api';\n");
+        graph.add_file("src/api/index.json", "{}");
+
+        assert_eq!(graph.depends_on("src/main.ts"), vec!["src/api".to_string()]);
+        assert!(graph.depended_on_by("src/api/index.json").is_empty());
     }
 
     #[test]
