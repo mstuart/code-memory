@@ -40,6 +40,26 @@ fn normalize_path(path: &str) -> String {
     parts.join("/")
 }
 
+fn source_placeholders(file_path: &str) -> Vec<String> {
+    let path = Path::new(file_path);
+    let mut placeholders = Vec::new();
+
+    if matches!(
+        path.extension().and_then(|extension| extension.to_str()),
+        Some("ts" | "tsx" | "js" | "jsx" | "py" | "rs" | "go")
+    ) {
+        placeholders.push(path.with_extension("").to_string_lossy().into_owned());
+    }
+
+    if path.file_stem().and_then(|stem| stem.to_str()) == Some("index") {
+        if let Some(parent) = path.parent() {
+            placeholders.push(parent.to_string_lossy().into_owned());
+        }
+    }
+
+    placeholders
+}
+
 /// Dependency graph built from import analysis.
 pub struct DependencyGraph {
     graph: DiGraph<String, ()>,
@@ -64,7 +84,7 @@ impl DependencyGraph {
 
     /// Add a file and its imports to the graph.
     pub fn add_file(&mut self, file_path: &str, content: &str) {
-        let source_idx = self.get_or_create_node(file_path);
+        let source_idx = self.get_or_create_source_node(file_path);
         let imports = self.parser.parse(file_path, content);
 
         for import in &imports {
@@ -77,6 +97,28 @@ impl DependencyGraph {
                 self.graph.add_edge(source_idx, target_idx, ());
             }
         }
+    }
+
+    /// Reuse an extensionless node that an earlier import created for this file.
+    ///
+    /// Imports such as `./router` are discovered before we necessarily walk
+    /// `router.ts`. Without reconciling that placeholder, the import edge and
+    /// the real file end up on separate nodes and graph results depend on walk
+    /// order.
+    fn get_or_create_source_node(&mut self, file_path: &str) -> NodeIndex {
+        if let Some(&idx) = self.node_map.get(file_path) {
+            return idx;
+        }
+
+        for placeholder in source_placeholders(file_path) {
+            if let Some(idx) = self.node_map.remove(&placeholder) {
+                self.graph[idx] = file_path.to_string();
+                self.node_map.insert(file_path.to_string(), idx);
+                return idx;
+            }
+        }
+
+        self.get_or_create_node(file_path)
     }
 
     /// Try to find an existing node that matches the import path,
@@ -301,6 +343,40 @@ mod tests {
 
         let dependents = graph.depended_on_by("src/db");
         assert_eq!(dependents.len(), 2);
+    }
+
+    #[test]
+    fn reconciles_extensionless_imports_when_target_is_added_later() {
+        let mut graph = DependencyGraph::new();
+
+        graph.add_file("src/main.ts", "import { Router } from './router';\n");
+        graph.add_file("src/router.ts", "import { handler } from './handler';\n");
+        graph.add_file("src/handler.ts", "export function handler() {}\n");
+
+        assert_eq!(
+            graph.depends_on("src/main.ts"),
+            vec!["src/router.ts".to_string()]
+        );
+        assert_eq!(
+            graph.depended_on_by("src/router.ts"),
+            vec!["src/main.ts".to_string()]
+        );
+        let transitive = graph.transitive_dependencies("src/main.ts");
+        assert!(transitive.contains(&"src/router.ts".to_string()));
+        assert!(transitive.contains(&"src/handler.ts".to_string()));
+    }
+
+    #[test]
+    fn reconciles_directory_imports_when_index_file_is_added_later() {
+        let mut graph = DependencyGraph::new();
+
+        graph.add_file("src/main.ts", "import { api } from './api';\n");
+        graph.add_file("src/api/index.ts", "export const api = {};\n");
+
+        assert_eq!(
+            graph.depends_on("src/main.ts"),
+            vec!["src/api/index.ts".to_string()]
+        );
     }
 
     #[test]
