@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use super::imports::ImportParser;
+use super::imports::{ImportParser, ImportType};
 
 /// Metadata about a node in the dependency graph.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,6 +66,7 @@ fn source_aliases(file_path: &str) -> Vec<String> {
 struct ImportEdge {
     source: NodeIndex,
     target: NodeIndex,
+    source_candidates: Vec<String>,
 }
 
 /// Dependency graph built from import analysis.
@@ -76,7 +77,7 @@ pub struct DependencyGraph {
     source_paths: HashSet<String>,
     relative_placeholders: HashMap<String, NodeIndex>,
     import_edges: Vec<ImportEdge>,
-    relative_imports: HashMap<String, Vec<usize>>,
+    resolvable_imports: HashMap<String, Vec<usize>>,
     edge_ref_counts: HashMap<(NodeIndex, NodeIndex), usize>,
     parser: ImportParser,
 }
@@ -96,7 +97,7 @@ impl DependencyGraph {
             source_paths: HashSet::new(),
             relative_placeholders: HashMap::new(),
             import_edges: Vec::new(),
-            relative_imports: HashMap::new(),
+            resolvable_imports: HashMap::new(),
             edge_ref_counts: HashMap::new(),
             parser: ImportParser::new(),
         }
@@ -105,31 +106,42 @@ impl DependencyGraph {
     /// Add a file and its imports to the graph.
     pub fn add_file(&mut self, file_path: &str, content: &str) {
         let source_idx = self.get_or_create_source_node(file_path);
-        self.rebind_relative_imports(file_path);
+        self.rebind_resolvable_imports(file_path);
         let imports = self.parser.parse(file_path, content);
 
         for import in &imports {
             let resolved =
                 self.resolve_import(file_path, &import.imported_path, import.is_relative);
-            let (target_idx, relative_path) = if import.is_relative {
-                let target_idx = self
-                    .find_matching_source(&resolved)
-                    .unwrap_or_else(|| self.get_or_create_relative_placeholder(&resolved));
-                (target_idx, Some(resolved))
+            let source_candidates = if import.is_relative {
+                vec![resolved.clone()]
+            } else if matches!(
+                import.import_type,
+                ImportType::PythonImport | ImportType::PythonFrom
+            ) {
+                self.python_source_candidates(file_path, &import.imported_path)
             } else {
-                (self.get_or_create_external_node(&resolved), None)
+                Vec::new()
+            };
+            let target_idx = if import.is_relative {
+                self.find_matching_source(&resolved)
+                    .unwrap_or_else(|| self.get_or_create_relative_placeholder(&resolved))
+            } else if let Some(target_idx) = self.find_best_source(&source_candidates) {
+                target_idx
+            } else {
+                self.get_or_create_external_node(&resolved)
             };
             self.increment_edge(source_idx, target_idx);
             let edge_index = self.import_edges.len();
-            if let Some(path) = &relative_path {
-                self.relative_imports
-                    .entry(path.clone())
+            for candidate in &source_candidates {
+                self.resolvable_imports
+                    .entry(candidate.clone())
                     .or_default()
                     .push(edge_index);
             }
             self.import_edges.push(ImportEdge {
                 source: source_idx,
                 target: target_idx,
+                source_candidates,
             });
         }
     }
@@ -165,6 +177,26 @@ impl DependencyGraph {
         None
     }
 
+    fn find_best_source(&self, candidates: &[String]) -> Option<NodeIndex> {
+        candidates
+            .iter()
+            .find_map(|candidate| self.find_matching_source(candidate))
+    }
+
+    fn python_source_candidates(&self, source_file: &str, import_path: &str) -> Vec<String> {
+        let module_path = import_path.replace('.', "/");
+        let source_dir = Path::new(source_file)
+            .parent()
+            .unwrap_or_else(|| Path::new(""));
+        let sibling = normalize_path(&source_dir.join(&module_path).to_string_lossy());
+
+        if sibling == module_path {
+            vec![module_path]
+        } else {
+            vec![sibling, module_path]
+        }
+    }
+
     fn get_or_create_relative_placeholder(&mut self, path: &str) -> NodeIndex {
         if let Some(&idx) = self.relative_placeholders.get(path) {
             return idx;
@@ -174,22 +206,24 @@ impl DependencyGraph {
         idx
     }
 
-    /// Redirect unresolved relative imports whenever a newly discovered source
-    /// is a better match. Keeping import bindings separate from graph nodes also
+    /// Redirect unresolved imports whenever a newly discovered source is a
+    /// better match. Keeping import bindings separate from graph nodes also
     /// prevents bare packages with the same name from being claimed as files.
-    fn rebind_relative_imports(&mut self, file_path: &str) {
+    fn rebind_resolvable_imports(&mut self, file_path: &str) {
         for relative_path in source_aliases(file_path) {
-            let Some(new_target) = self.find_matching_source(&relative_path) else {
-                continue;
-            };
             let edge_indices = self
-                .relative_imports
+                .resolvable_imports
                 .get(&relative_path)
                 .cloned()
                 .unwrap_or_default();
             for edge_index in edge_indices {
                 let source = self.import_edges[edge_index].source;
                 let old_target = self.import_edges[edge_index].target;
+                let Some(new_target) =
+                    self.find_best_source(&self.import_edges[edge_index].source_candidates)
+                else {
+                    continue;
+                };
                 if new_target == old_target {
                     continue;
                 }
@@ -544,6 +578,42 @@ mod tests {
 
         assert_eq!(graph.depends_on("src/main.ts"), vec!["src/api".to_string()]);
         assert!(graph.depended_on_by("src/api/index.json").is_empty());
+    }
+
+    #[test]
+    fn reconciles_python_absolute_imports_with_sibling_modules() {
+        for sources in [
+            ["src/main.py", "src/utils.py"],
+            ["src/utils.py", "src/main.py"],
+        ] {
+            let mut graph = DependencyGraph::new();
+            for source in sources {
+                let content = if source == "src/main.py" {
+                    "from utils import helper\n"
+                } else {
+                    "def helper(): pass\n"
+                };
+                graph.add_file(source, content);
+            }
+
+            assert_eq!(
+                graph.depends_on("src/main.py"),
+                vec!["src/utils.py".to_string()]
+            );
+            assert_eq!(
+                graph.depended_on_by("src/utils.py"),
+                vec!["src/main.py".to_string()]
+            );
+        }
+    }
+
+    #[test]
+    fn leaves_unresolved_python_imports_as_external_modules() {
+        let mut graph = DependencyGraph::new();
+
+        graph.add_file("src/main.py", "import os\n");
+
+        assert_eq!(graph.depends_on("src/main.py"), vec!["os".to_string()]);
     }
 
     #[test]
