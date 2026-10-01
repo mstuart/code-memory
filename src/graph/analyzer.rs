@@ -40,20 +40,44 @@ fn normalize_path(path: &str) -> String {
     parts.join("/")
 }
 
+fn source_aliases(file_path: &str) -> Vec<String> {
+    let path = Path::new(file_path);
+    let extension = path.extension().and_then(|extension| extension.to_str());
+    let mut aliases = vec![file_path.to_string()];
+
+    if matches!(
+        extension,
+        Some("ts" | "tsx" | "js" | "jsx" | "py" | "rs" | "go")
+    ) {
+        aliases.push(path.with_extension("").to_string_lossy().into_owned());
+    }
+    if matches!(extension, Some("ts" | "tsx" | "js"))
+        && path.file_stem().and_then(|stem| stem.to_str()) == Some("index")
+    {
+        if let Some(parent) = path.parent() {
+            aliases.push(parent.to_string_lossy().into_owned());
+        }
+    }
+
+    aliases
+}
+
 #[derive(Debug, Clone)]
 struct ImportEdge {
     source: NodeIndex,
     target: NodeIndex,
-    relative_path: Option<String>,
 }
 
 /// Dependency graph built from import analysis.
 pub struct DependencyGraph {
     graph: DiGraph<String, ()>,
     node_map: HashMap<String, NodeIndex>,
+    external_nodes: HashMap<String, NodeIndex>,
     source_paths: HashSet<String>,
     relative_placeholders: HashMap<String, NodeIndex>,
     import_edges: Vec<ImportEdge>,
+    relative_imports: HashMap<String, Vec<usize>>,
+    edge_ref_counts: HashMap<(NodeIndex, NodeIndex), usize>,
     parser: ImportParser,
 }
 
@@ -68,9 +92,12 @@ impl DependencyGraph {
         Self {
             graph: DiGraph::new(),
             node_map: HashMap::new(),
+            external_nodes: HashMap::new(),
             source_paths: HashSet::new(),
             relative_placeholders: HashMap::new(),
             import_edges: Vec::new(),
+            relative_imports: HashMap::new(),
+            edge_ref_counts: HashMap::new(),
             parser: ImportParser::new(),
         }
     }
@@ -78,7 +105,7 @@ impl DependencyGraph {
     /// Add a file and its imports to the graph.
     pub fn add_file(&mut self, file_path: &str, content: &str) {
         let source_idx = self.get_or_create_source_node(file_path);
-        self.rebind_relative_imports();
+        self.rebind_relative_imports(file_path);
         let imports = self.parser.parse(file_path, content);
 
         for import in &imports {
@@ -90,21 +117,29 @@ impl DependencyGraph {
                     .unwrap_or_else(|| self.get_or_create_relative_placeholder(&resolved));
                 (target_idx, Some(resolved))
             } else {
-                (self.get_or_create_node(&resolved), None)
+                (self.get_or_create_external_node(&resolved), None)
             };
-            if !self.graph.contains_edge(source_idx, target_idx) {
-                self.graph.add_edge(source_idx, target_idx, ());
+            self.increment_edge(source_idx, target_idx);
+            let edge_index = self.import_edges.len();
+            if let Some(path) = &relative_path {
+                self.relative_imports
+                    .entry(path.clone())
+                    .or_default()
+                    .push(edge_index);
             }
             self.import_edges.push(ImportEdge {
                 source: source_idx,
                 target: target_idx,
-                relative_path,
             });
         }
     }
 
     fn get_or_create_source_node(&mut self, file_path: &str) -> NodeIndex {
-        let idx = self.get_or_create_node(file_path);
+        if let Some(&idx) = self.node_map.get(file_path) {
+            return idx;
+        }
+        let idx = self.graph.add_node(file_path.to_string());
+        self.node_map.insert(file_path.to_string(), idx);
         self.source_paths.insert(file_path.to_string());
         idx
     }
@@ -142,46 +177,59 @@ impl DependencyGraph {
     /// Redirect unresolved relative imports whenever a newly discovered source
     /// is a better match. Keeping import bindings separate from graph nodes also
     /// prevents bare packages with the same name from being claimed as files.
-    fn rebind_relative_imports(&mut self) {
-        for edge_index in 0..self.import_edges.len() {
-            let Some(relative_path) = self.import_edges[edge_index].relative_path.clone() else {
-                continue;
-            };
+    fn rebind_relative_imports(&mut self, file_path: &str) {
+        for relative_path in source_aliases(file_path) {
             let Some(new_target) = self.find_matching_source(&relative_path) else {
                 continue;
             };
-            let source = self.import_edges[edge_index].source;
-            let old_target = self.import_edges[edge_index].target;
-            if new_target == old_target {
-                continue;
-            }
-
-            self.import_edges[edge_index].target = new_target;
-            let old_edge_is_still_used = self
-                .import_edges
-                .iter()
-                .any(|edge| edge.source == source && edge.target == old_target);
-            if !old_edge_is_still_used {
-                if let Some(edge) = self.graph.find_edge(source, old_target) {
-                    self.graph.remove_edge(edge);
+            let edge_indices = self
+                .relative_imports
+                .get(&relative_path)
+                .cloned()
+                .unwrap_or_default();
+            for edge_index in edge_indices {
+                let source = self.import_edges[edge_index].source;
+                let old_target = self.import_edges[edge_index].target;
+                if new_target == old_target {
+                    continue;
                 }
+
+                self.decrement_edge(source, old_target);
+                self.increment_edge(source, new_target);
+                self.import_edges[edge_index].target = new_target;
             }
-            if !self.graph.contains_edge(source, new_target) {
-                self.graph.add_edge(source, new_target, ());
-            }
-            if self.relative_placeholders.get(&relative_path) == Some(&old_target) {
-                self.relative_placeholders.remove(&relative_path);
-            }
+            self.relative_placeholders.remove(&relative_path);
         }
     }
 
-    fn get_or_create_node(&mut self, path: &str) -> NodeIndex {
-        if let Some(&idx) = self.node_map.get(path) {
+    fn get_or_create_external_node(&mut self, path: &str) -> NodeIndex {
+        if let Some(&idx) = self.external_nodes.get(path) {
             idx
         } else {
             let idx = self.graph.add_node(path.to_string());
-            self.node_map.insert(path.to_string(), idx);
+            self.external_nodes.insert(path.to_string(), idx);
             idx
+        }
+    }
+
+    fn increment_edge(&mut self, source: NodeIndex, target: NodeIndex) {
+        let count = self.edge_ref_counts.entry((source, target)).or_default();
+        if *count == 0 {
+            self.graph.add_edge(source, target, ());
+        }
+        *count += 1;
+    }
+
+    fn decrement_edge(&mut self, source: NodeIndex, target: NodeIndex) {
+        let Some(count) = self.edge_ref_counts.get_mut(&(source, target)) else {
+            return;
+        };
+        *count -= 1;
+        if *count == 0 {
+            self.edge_ref_counts.remove(&(source, target));
+            if let Some(edge) = self.graph.find_edge(source, target) {
+                self.graph.remove_edge(edge);
+            }
         }
     }
 
@@ -189,6 +237,7 @@ impl DependencyGraph {
         self.node_map
             .get(path)
             .or_else(|| self.relative_placeholders.get(path))
+            .or_else(|| self.external_nodes.get(path))
             .copied()
     }
 
@@ -286,6 +335,7 @@ impl DependencyGraph {
     pub fn all_nodes(&self) -> Vec<NodeInfo> {
         self.node_map
             .iter()
+            .chain(self.external_nodes.iter())
             .chain(self.relative_placeholders.iter())
             .map(|(path, &idx)| {
                 let ext = Path::new(path)
@@ -321,7 +371,7 @@ impl DependencyGraph {
     /// Total nodes and edges.
     pub fn stats(&self) -> (usize, usize) {
         (
-            self.node_map.len() + self.relative_placeholders.len(),
+            self.node_map.len() + self.external_nodes.len() + self.relative_placeholders.len(),
             self.graph.edge_count(),
         )
     }
@@ -331,6 +381,7 @@ impl DependencyGraph {
         let mut counts: Vec<(String, usize)> = self
             .node_map
             .iter()
+            .chain(self.external_nodes.iter())
             .chain(self.relative_placeholders.iter())
             .map(|(path, &idx)| {
                 (
@@ -351,6 +402,7 @@ impl DependencyGraph {
         let mut counts: Vec<(String, usize)> = self
             .node_map
             .iter()
+            .chain(self.external_nodes.iter())
             .chain(self.relative_placeholders.iter())
             .map(|(path, &idx)| {
                 (
@@ -467,6 +519,20 @@ mod tests {
 
         assert_eq!(graph.depends_on("src/main.ts"), vec!["express".to_string()]);
         assert!(graph.depended_on_by("express.js").is_empty());
+    }
+
+    #[test]
+    fn exact_bare_specifiers_are_separate_from_source_paths() {
+        let mut graph = DependencyGraph::new();
+
+        graph.add_file("src/main.ts", "import value from 'index.js';\n");
+        graph.add_file("index.js", "export default {};\n");
+
+        assert!(graph.depended_on_by("index.js").is_empty());
+        assert_eq!(
+            graph.depends_on("src/main.ts"),
+            vec!["index.js".to_string()]
+        );
     }
 
     #[test]
