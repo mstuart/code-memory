@@ -39,22 +39,23 @@ impl DecisionParser {
     pub fn parse_message(&self, message: &str) -> Vec<Decision> {
         let mut decisions = Vec::new();
 
+        let normalized = message.to_lowercase();
         // Check if message contains decision keywords
         let has_decision = self
             .decision_keywords
             .iter()
-            .any(|re| re.is_match(&message.to_lowercase()));
+            .any(|re| re.is_match(&normalized));
 
         if !has_decision {
             return decisions;
         }
 
         // Extract decision type
-        let decision_type = if message.contains("migrat") {
+        let decision_type = if normalized.contains("migrat") {
             "migration"
-        } else if message.contains("arch:") || message.contains("architecture") {
+        } else if normalized.contains("arch:") || normalized.contains("architecture") {
             "architecture"
-        } else if message.contains("refactor:") {
+        } else if normalized.contains("refactor:") {
             "refactoring"
         } else {
             "general"
@@ -86,7 +87,7 @@ impl DecisionParser {
 
 fn extract_migration_pair(message: &str) -> (Option<String>, String) {
     // Pattern: "from X to Y" or "migrate from X to Y"
-    let from_to_re = Regex::new(r"from\s+(\w+)\s+to\s+(\w+)").unwrap();
+    let from_to_re = Regex::new(r"(?i)from\s+(\w+)\s+to\s+(\w+)").unwrap();
 
     if let Some(caps) = from_to_re.captures(message) {
         let from = caps.get(1).map(|m| m.as_str().to_string());

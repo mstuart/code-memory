@@ -45,20 +45,11 @@ impl PatternLibrary {
 
     /// Record an observation of a pattern key.
     pub fn observe(&mut self, key: &str) {
-        *self.observations.entry(key.to_string()).or_insert(0) += 1;
-    }
-
-    /// Record an observation with an example.
-    pub fn observe_with_example(&mut self, key: &str, example: &str) {
-        self.observe(key);
-
-        let count = *self.observations.get(key).unwrap_or(&1);
+        let count = self.observations.entry(key.to_string()).or_insert(0);
+        *count += 1;
+        let count = *count;
         let confidence = Self::calc_confidence(count);
-
         if let Some(pattern) = self.patterns.iter_mut().find(|p| p.key == key) {
-            if pattern.examples.len() < 10 {
-                pattern.examples.push(example.to_string());
-            }
             pattern.observation_count = count;
             pattern.confidence = confidence;
         } else {
@@ -67,10 +58,20 @@ impl PatternLibrary {
                 pattern_type,
                 key: key.to_string(),
                 description,
-                observation_count: 1,
-                confidence: 0.1,
-                examples: vec![example.to_string()],
+                observation_count: count,
+                confidence,
+                examples: Vec::new(),
             });
+        }
+    }
+
+    /// Record an observation with an example.
+    pub fn observe_with_example(&mut self, key: &str, example: &str) {
+        self.observe(key);
+        if let Some(pattern) = self.patterns.iter_mut().find(|p| p.key == key) {
+            if pattern.examples.len() < 10 {
+                pattern.examples.push(example.to_string());
+            }
         }
     }
 
