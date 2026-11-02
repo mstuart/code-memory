@@ -51,8 +51,10 @@ fn source_aliases(file_path: &str) -> Vec<String> {
     ) {
         aliases.push(path.with_extension("").to_string_lossy().into_owned());
     }
-    if matches!(extension, Some("ts" | "tsx" | "js"))
-        && path.file_stem().and_then(|stem| stem.to_str()) == Some("index")
+    if (matches!(extension, Some("ts" | "tsx" | "js"))
+        && path.file_stem().and_then(|stem| stem.to_str()) == Some("index"))
+        || (extension == Some("rs")
+            && path.file_stem().and_then(|stem| stem.to_str()) == Some("mod"))
     {
         if let Some(parent) = path.parent() {
             aliases.push(parent.to_string_lossy().into_owned());
@@ -168,7 +170,7 @@ impl DependencyGraph {
                 return self.node_map.get(&with_ext).copied();
             }
         }
-        for ext in &["/index.ts", "/index.js", "/index.tsx"] {
+        for ext in &["/index.ts", "/index.js", "/index.tsx", "/mod.rs"] {
             let with_index = format!("{}{}", resolved, ext);
             if self.source_paths.contains(&with_index) {
                 return self.node_map.get(&with_index).copied();
@@ -315,7 +317,8 @@ impl DependencyGraph {
             return normalize_path(&joined.to_string_lossy());
         }
 
-        import_path.to_string()
+        let joined = source_dir.join(source_stem).join(import_path);
+        normalize_path(&joined.to_string_lossy())
     }
 
     /// What does this file depend on? (direct)
